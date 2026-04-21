@@ -45,6 +45,8 @@ class YouTubeClient:
         self.base_url = str(settings.youtube_api_base_url)
         self.timeout = settings.request_timeout_seconds
         self.api_key = settings.youtube_api_key
+        self.min_duration_seconds = settings.youtube_min_duration_seconds
+        self.candidate_pool_size = settings.youtube_candidate_pool_size
 
     async def fetch_channel_with_latest_videos(
         self,
@@ -56,10 +58,15 @@ class YouTubeClient:
         uploads_playlist_id = await self._fetch_uploads_playlist_id(channel.youtube_channel_id)
         video_ids = await self._fetch_latest_video_ids(
             uploads_playlist_id=uploads_playlist_id,
-            max_results=max_results,
+            max_results=max(max_results, self.candidate_pool_size),
         )
         videos = await self._fetch_video_details(video_ids=video_ids)
-        return channel, videos
+        filtered_videos = [
+            video
+            for video in videos
+            if (video.duration_seconds or 0) >= self.min_duration_seconds
+        ]
+        return channel, filtered_videos[:max_results]
 
     def _extract_channel_reference(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
@@ -147,20 +154,36 @@ class YouTubeClient:
         return items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
 
     async def _fetch_latest_video_ids(self, uploads_playlist_id: str, max_results: int) -> list[str]:
-        payload = await self._request_json(
-            "/playlistItems",
-            params={
+        remaining = max_results
+        page_token: str | None = None
+        video_ids: list[str] = []
+
+        while remaining > 0:
+            page_size = min(50, remaining)
+            params = {
                 "part": "contentDetails",
                 "playlistId": uploads_playlist_id,
-                "maxResults": max_results,
+                "maxResults": page_size,
                 "key": self.api_key,
-            },
-        )
-        return [
-            item["contentDetails"]["videoId"]
-            for item in payload.get("items", [])
-            if item.get("contentDetails", {}).get("videoId")
-        ]
+            }
+            if page_token:
+                params["pageToken"] = page_token
+
+            payload = await self._request_json("/playlistItems", params=params)
+            video_ids.extend(
+                [
+                    item["contentDetails"]["videoId"]
+                    for item in payload.get("items", [])
+                    if item.get("contentDetails", {}).get("videoId")
+                ]
+            )
+
+            page_token = payload.get("nextPageToken")
+            remaining = max_results - len(video_ids)
+            if not page_token:
+                break
+
+        return video_ids[:max_results]
 
     async def _fetch_video_details(self, video_ids: list[str]) -> list[YouTubeVideoPayload]:
         if not video_ids:

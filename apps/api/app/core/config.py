@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     youtube_api_key: str = Field(default="")
     youtube_api_base_url: AnyHttpUrl = Field(default="https://www.googleapis.com/youtube/v3")
+    youtube_min_duration_seconds: int = 180
+    youtube_candidate_pool_size: int = 30
 
     openai_api_key: str = Field(default="")
 
