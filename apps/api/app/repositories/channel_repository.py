@@ -1,8 +1,11 @@
 from sqlalchemy import Select, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.db.models.channel import Channel
 from app.db.models.video import Video
+
+settings = get_settings()
 
 
 class ChannelRepository:
@@ -24,6 +27,24 @@ class ChannelRepository:
             select(Video)
             .where(Video.channel_id == channel_id)
             .order_by(desc(Video.published_at))
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def list_active_videos_for_channel(
+        self,
+        channel_id: str,
+        limit: int = 1,
+    ) -> list[Video]:
+        query: Select[tuple[Video]] = (
+            select(Video)
+            .where(
+                Video.channel_id == channel_id,
+                Video.duration_seconds.is_not(None),
+                Video.duration_seconds >= settings.youtube_min_duration_seconds,
+            )
+            .order_by(desc(Video.published_at))
+            .limit(limit)
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())

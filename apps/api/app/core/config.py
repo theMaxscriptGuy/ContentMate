@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
@@ -19,12 +19,13 @@ class Settings(BaseSettings):
     )
     redis_url: str = Field(default="redis://localhost:6379/0")
 
-    youtube_api_key: str = Field(default="")
-    youtube_api_base_url: AnyHttpUrl = Field(default="https://www.googleapis.com/youtube/v3")
-    youtube_min_duration_seconds: int = 180
+    youtube_min_duration_seconds: int = 301
     youtube_candidate_pool_size: int = 30
+    transcript_use_ytdlp_fallback: bool = True
 
     openai_api_key: str = Field(default="")
+    openai_analysis_model: str = "gpt-4.1-mini"
+    openai_analysis_max_transcript_chars: int = 60000
 
     request_timeout_seconds: float = 20.0
 

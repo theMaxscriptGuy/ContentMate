@@ -1,33 +1,146 @@
+import html
 import re
 from collections import Counter
 
 STOPWORDS = {
+    "able",
+    "actually",
+    "all",
+    "almost",
+    "already",
+    "always",
+    "am",
+    "an",
+    "and",
+    "any",
+    "anyone",
+    "anything",
     "about",
     "after",
     "again",
     "also",
+    "amp",
+    "api",
+    "are",
+    "around",
+    "because",
     "been",
+    "before",
     "being",
+    "bit",
+    "both",
+    "but",
+    "can",
     "channel",
+    "could",
     "content",
+    "did",
+    "didn",
+    "does",
+    "doing",
+    "don",
+    "enable",
+    "enablejsapi",
+    "even",
+    "every",
+    "false",
+    "for",
     "from",
+    "get",
+    "got",
+    "had",
+    "has",
     "have",
+    "having",
+    "hey",
+    "hi",
+    "html",
+    "html5",
+    "http",
+    "https",
+    "ill",
+    "i'll",
+    "i'm",
+    "im",
+    "is",
+    "isn",
+    "it",
+    "its",
     "into",
     "just",
+    "know",
     "like",
+    "lot",
+    "made",
+    "make",
+    "maybe",
+    "me",
     "more",
     "most",
+    "much",
+    "nice",
+    "not",
+    "now",
+    "okay",
+    "one",
+    "only",
+    "out",
+    "player",
+    "play",
+    "playing",
+    "right",
     "really",
+    "see",
+    "seen",
+    "should",
+    "so",
+    "some",
+    "something",
+    "still",
+    "stream",
+    "streaming",
     "that",
+    "the",
     "their",
     "them",
+    "there",
+    "these",
     "they",
+    "thing",
+    "think",
     "this",
+    "till",
+    "today",
+    "true",
+    "u0026",
+    "u003d",
+    "uh",
+    "um",
+    "was",
+    "we",
+    "well",
+    "were",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "why",
+    "will",
+    "url",
     "video",
     "videos",
     "want",
+    "way",
+    "web",
     "with",
+    "widget",
     "would",
+    "yeah",
+    "yes",
+    "you",
+    "youre",
+    "you're",
     "your",
 }
 
@@ -40,12 +153,70 @@ TOPIC_BUCKETS = {
     "lifestyle": {"routine", "mindset", "health", "fitness", "productivity", "life"},
 }
 
+NOISE_PATTERNS = (
+    r"u00[0-9a-f]{2}",
+    r"html5",
+    r"enablejsapi",
+    r"widgetid",
+    r"origin",
+    r"player",
+)
+
+YOUTUBE_PAGE_CONFIG_MARKERS = (
+    "web_player_context_config",
+    "serializedexperimentflags",
+    "serializedclientexperimentflags",
+    "innertubeapikey",
+    "window.ytcfg",
+    "ytcfg.set",
+    "player_bootstrap_method",
+    "trustedjsurl",
+    "trustedcssurl",
+    "xsrf_token",
+    "client_transport",
+    "live_chat_base_tango_config",
+)
+
 
 def clean_transcript_text(raw_text: str) -> str:
-    text = raw_text.replace("\n", " ")
-    text = re.sub(r"\s+", " ", text)
+    text = html.unescape(raw_text)
+    text = text.replace("\\u003d", " ").replace("\\u0026", " ")
+    text = text.replace("u003d", " ").replace("u0026", " ")
+    text = text.replace("\n", " ")
+    text = re.sub(r"https?://\S+", " ", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"(?:%s)" % "|".join(NOISE_PATTERNS), " ", text, flags=re.IGNORECASE)
     text = re.sub(r"\[[^\]]+\]", "", text)
+    text = re.sub(r"\b[a-z]{1,3}\d+[a-z0-9]*\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\b(?:true|false|null)\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def looks_like_youtube_page_config(text: str) -> bool:
+    lowered = text.lower()
+    marker_count = sum(marker in lowered for marker in YOUTUBE_PAGE_CONFIG_MARKERS)
+    escaped_query_count = (
+        lowered.count("\\u0026")
+        + lowered.count("u0026")
+        + lowered.count("\\u003d")
+        + lowered.count("u003d")
+    )
+    player_flag_count = lowered.count("html5_") + lowered.count("web_player_")
+    return marker_count >= 2 or escaped_query_count >= 40 or player_flag_count >= 20
+
+
+def is_probably_transcript_text(text: str) -> bool:
+    if looks_like_youtube_page_config(text):
+        return False
+
+    words = re.findall(r"[a-zA-Z][a-zA-Z']+", text)
+    if len(words) < 5:
+        return False
+
+    token_count = max(len(re.findall(r"\S+", text)), 1)
+    natural_word_ratio = len(words) / token_count
+    return natural_word_ratio >= 0.35
 
 
 def chunk_text(text: str, target_words: int = 220) -> list[str]:
@@ -62,15 +233,27 @@ def chunk_text(text: str, target_words: int = 220) -> list[str]:
 def extract_candidate_topics(text: str, limit: int = 12) -> Counter[str]:
     tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9\-]{2,}", text.lower())
     filtered = [
-        token
+        _normalize_topic_token(token)
         for token in tokens
-        if token not in STOPWORDS and not token.isdigit() and len(token) > 2
+        if token not in STOPWORDS
+        and not token.isdigit()
+        and len(token) > 2
+        and not token.startswith("u00")
+        and not re.search(r"\d", token)
     ]
     counts = Counter(filtered)
     return Counter(dict(counts.most_common(limit)))
 
 
-def build_topic_insights(topic_counter: Counter[str]) -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
+def _normalize_topic_token(token: str) -> str:
+    if len(token) > 4 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
+def build_topic_insights(
+    topic_counter: Counter[str],
+) -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
     items = topic_counter.most_common()
     return items[:5], items[5:10]
 
@@ -122,15 +305,22 @@ def infer_content_patterns(titles: list[str]) -> list[str]:
     return patterns
 
 
-def infer_strengths_and_gaps(topic_counter: Counter[str], transcript_count: int) -> tuple[list[str], list[str]]:
+def infer_strengths_and_gaps(
+    topic_counter: Counter[str],
+    transcript_count: int,
+) -> tuple[list[str], list[str]]:
     topics = [topic for topic, _ in topic_counter.most_common(5)]
     strengths = []
     gaps = []
 
     if topics:
-        strengths.append(f"Strong repetition around {', '.join(topics[:3])} creates a clear thematic identity.")
+        strengths.append(
+            f"Strong repetition around {', '.join(topics[:3])} creates a clear thematic identity."
+        )
     if transcript_count >= 5:
-        strengths.append("The channel has enough recent transcript coverage to support pattern analysis.")
+        strengths.append(
+            "The channel has enough recent transcript coverage to support pattern analysis."
+        )
     else:
         gaps.append("Limited transcript coverage reduces confidence in deeper style analysis.")
 

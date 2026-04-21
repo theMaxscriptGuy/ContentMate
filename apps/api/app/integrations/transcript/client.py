@@ -24,6 +24,10 @@ except ModuleNotFoundError as exc:  # pragma: no cover - depends on local env se
     YtDlpRequest = None
     _YTDLP_IMPORT_ERROR = exc
 
+from app.core.config import get_settings
+
+settings = get_settings()
+
 
 class TranscriptProviderError(Exception):
     pass
@@ -40,6 +44,14 @@ class TranscriptClient:
     def fetch_transcript(self, youtube_video_id: str) -> TranscriptPayload:
         errors: list[str] = []
 
+        if settings.transcript_use_ytdlp_fallback and yt_dlp is not None:
+            try:
+                return self._fetch_with_ytdlp(youtube_video_id)
+            except TranscriptProviderError as exc:
+                errors.append(str(exc))
+        elif settings.transcript_use_ytdlp_fallback and _YTDLP_IMPORT_ERROR is not None:
+            errors.append("yt-dlp is unavailable. Run `pip install -e .` in apps/api.")
+
         if YouTubeTranscriptApi is not None:
             try:
                 return self._fetch_with_youtube_transcript_api(youtube_video_id)
@@ -50,15 +62,9 @@ class TranscriptClient:
                 "youtube-transcript-api is unavailable. Run `pip install -e .` in apps/api."
             )
 
-        if yt_dlp is not None:
-            try:
-                return self._fetch_with_ytdlp(youtube_video_id)
-            except TranscriptProviderError as exc:
-                errors.append(str(exc))
-        elif _YTDLP_IMPORT_ERROR is not None:
-            errors.append("yt-dlp is unavailable. Run `pip install -e .` in apps/api.")
-
-        raise TranscriptProviderError(" | ".join(dict.fromkeys(errors)) or "No transcript found for this video.")
+        raise TranscriptProviderError(
+            " | ".join(dict.fromkeys(errors)) or "No transcript found for this video."
+        )
 
     def _fetch_with_youtube_transcript_api(self, youtube_video_id: str) -> TranscriptPayload:
         if YouTubeTranscriptApi is None:
@@ -66,14 +72,15 @@ class TranscriptClient:
                 "Transcript dependencies are missing. Run `pip install -e .` in apps/api."
             ) from _TRANSCRIPT_IMPORT_ERROR
         try:
-            transcript = YouTubeTranscriptApi().fetch(
-                youtube_video_id,
-                languages=["en", "en-US", "en-GB", "hi"],
-            )
+            transcript = self._fetch_transcript_from_library(youtube_video_id)
         except (NoTranscriptFound, ParseError) as exc:
             raise TranscriptProviderError("No transcript found for this video.") from exc
+        except AttributeError as exc:
+            raise TranscriptProviderError(
+                "Installed youtube-transcript-api version is not supported."
+            ) from exc
         except Exception as exc:
-            raise TranscriptProviderError("Transcript provider returned an unreadable response.") from exc
+            raise TranscriptProviderError(_describe_provider_error(exc)) from exc
 
         parts = []
         snippets = getattr(transcript, "snippets", transcript)
@@ -93,6 +100,17 @@ class TranscriptClient:
             raw_text=raw_text,
         )
 
+    @staticmethod
+    def _fetch_transcript_from_library(youtube_video_id: str):
+        languages = ["en", "en-US", "en-GB", "hi"]
+        client = YouTubeTranscriptApi()
+        fetch = getattr(client, "fetch", None)
+        if fetch is not None:
+            return fetch(youtube_video_id, languages=languages)
+
+        get_transcript = getattr(client, "get_transcript")
+        return get_transcript(youtube_video_id, languages=languages)
+
     def _fetch_with_ytdlp(self, youtube_video_id: str) -> TranscriptPayload:
         if yt_dlp is None:
             raise TranscriptProviderError(
@@ -111,7 +129,9 @@ class TranscriptClient:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=False)
         except Exception as exc:
-            raise TranscriptProviderError("yt-dlp could not inspect transcript tracks for this video.") from exc
+            raise TranscriptProviderError(
+                f"yt-dlp could not inspect transcript tracks: {_describe_provider_error(exc)}"
+            ) from exc
 
         track, language, source = self._choose_ytdlp_track(info)
         if track is None:
@@ -126,11 +146,18 @@ class TranscriptClient:
 
     @staticmethod
     def _choose_ytdlp_track(info: dict) -> tuple[dict | None, str | None, str]:
-        preferred_languages = ["en", "en-US", "en-GB", "hi"]
+        preferred_languages = ["en", "en-orig", "en-US", "en-GB", "hi"]
+        ignored_languages = {"live_chat"}
 
-        for bucket_name, source in (("subtitles", "manual_ytdlp"), ("automatic_captions", "generated_ytdlp")):
+        track_buckets = (
+            ("subtitles", "manual_ytdlp"),
+            ("automatic_captions", "generated_ytdlp"),
+        )
+        for bucket_name, source in track_buckets:
             tracks = info.get(bucket_name) or {}
             for language in preferred_languages + sorted(tracks.keys()):
+                if language in ignored_languages:
+                    continue
                 entries = tracks.get(language)
                 if not entries:
                     continue
@@ -162,7 +189,9 @@ class TranscriptClient:
             with ydl.urlopen(request) as response:
                 return response.read().decode("utf-8", errors="ignore")
         except Exception as exc:
-            raise TranscriptProviderError("Failed to download subtitle track from yt-dlp.") from exc
+            raise TranscriptProviderError(
+                f"yt-dlp could not download subtitle track: {_describe_provider_error(exc)}"
+            ) from exc
 
     @staticmethod
     def _parse_subtitle_text(content: str, extension: str | None) -> str:
@@ -236,3 +265,12 @@ class TranscriptClient:
         text = " ".join(parts)
         text = re.sub(r"\s+", " ", text).strip()
         return text
+
+
+def _describe_provider_error(exc: Exception) -> str:
+    message = str(exc)
+    if "429" in message or "Too Many Requests" in message:
+        return "YouTube transcript request was rate limited (HTTP 429 Too Many Requests)."
+    if "Failed to resolve" in message or "NameResolutionError" in message:
+        return "Could not reach YouTube transcript service because DNS/network lookup failed."
+    return "Transcript provider returned an unreadable response."

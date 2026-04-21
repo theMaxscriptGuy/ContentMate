@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import httpx
+import yt_dlp
 
 from app.core.config import get_settings
 
@@ -42,31 +42,33 @@ class YouTubeVideoPayload:
 
 class YouTubeClient:
     def __init__(self) -> None:
-        self.base_url = str(settings.youtube_api_base_url)
         self.timeout = settings.request_timeout_seconds
-        self.api_key = settings.youtube_api_key
         self.min_duration_seconds = settings.youtube_min_duration_seconds
         self.candidate_pool_size = settings.youtube_candidate_pool_size
 
     async def fetch_channel_with_latest_videos(
         self,
         channel_url: str,
-        max_results: int = 10,
+        max_results: int = 1,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
-        channel_ref = self._extract_channel_reference(channel_url)
-        channel = await self._resolve_channel(channel_ref=channel_ref, channel_url=channel_url)
-        uploads_playlist_id = await self._fetch_uploads_playlist_id(channel.youtube_channel_id)
-        video_ids = await self._fetch_latest_video_ids(
-            uploads_playlist_id=uploads_playlist_id,
-            max_results=max(max_results, self.candidate_pool_size),
-        )
-        videos = await self._fetch_video_details(video_ids=video_ids)
+        info = self._extract_channel_info(channel_url=channel_url)
+        channel = self._build_channel_payload(info=info, channel_url=channel_url)
+        videos = self._build_video_payloads(info=info)
         filtered_videos = [
             video
             for video in videos
             if (video.duration_seconds or 0) >= self.min_duration_seconds
         ]
-        return channel, filtered_videos[:max_results]
+        hydrated_videos = [
+            self._hydrate_video_payload(video)
+            for video in filtered_videos[: self.candidate_pool_size]
+        ]
+        selected_videos = sorted(
+            hydrated_videos,
+            key=lambda video: video.published_at,
+            reverse=True,
+        )[:max_results]
+        return channel, selected_videos
 
     def _extract_channel_reference(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
@@ -85,158 +87,133 @@ class YouTubeClient:
 
         raise YouTubeApiError("Unsupported YouTube channel URL format.")
 
-    async def _resolve_channel(
-        self, channel_ref: str, channel_url: str
+    def _extract_channel_info(self, channel_url: str) -> dict[str, Any]:
+        ydl_opts = {
+            "extract_flat": "in_playlist",
+            "ignoreerrors": True,
+            "playlistend": self.candidate_pool_size,
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "socket_timeout": self.timeout,
+        }
+
+        infos = []
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            for tab in ("streams", "videos"):
+                uploads_url = self._normalize_channel_uploads_url(channel_url, tab=tab)
+                try:
+                    info = ydl.extract_info(uploads_url, download=False)
+                except Exception as exc:
+                    raise YouTubeApiError(f"yt-dlp could not inspect channel: {exc}") from exc
+                if info:
+                    infos.append(info)
+
+        if not infos:
+            raise YouTubeApiError("Channel not found in yt-dlp response.")
+        primary_info = infos[0]
+        primary_info["entries"] = _dedupe_entries(
+            entry
+            for info in infos
+            for entry in (info.get("entries") or [])
+        )
+        return primary_info
+
+    def _normalize_channel_uploads_url(self, channel_url: str, tab: str) -> str:
+        parsed = urlparse(channel_url)
+        if parsed.netloc and "youtube.com" not in parsed.netloc:
+            raise YouTubeApiError("Unsupported YouTube channel URL format.")
+
+        base_url = channel_url.rstrip("/")
+        for known_tab in ("videos", "streams", "shorts", "live"):
+            suffix = f"/{known_tab}"
+            if base_url.endswith(suffix):
+                base_url = base_url[: -len(suffix)]
+                break
+        return f"{base_url}/{tab}"
+
+    def _build_channel_payload(
+        self,
+        info: dict[str, Any],
+        channel_url: str,
     ) -> YouTubeChannelPayload:
-        if channel_ref.startswith("UC"):
-            payload = await self._request_json(
-                "/channels",
-                params={
-                    "part": "snippet,statistics,brandingSettings",
-                    "id": channel_ref,
-                    "key": self.api_key,
-                },
-            )
-        elif channel_ref.startswith("@"):
-            payload = await self._request_json(
-                "/channels",
-                params={
-                    "part": "snippet,statistics,brandingSettings",
-                    "forHandle": channel_ref[1:],
-                    "key": self.api_key,
-                },
-            )
-        else:
-            payload = await self._request_json(
-                "/channels",
-                params={
-                    "part": "snippet,statistics,brandingSettings",
-                    "forUsername": channel_ref,
-                    "key": self.api_key,
-                },
-            )
+        thumbnails = info.get("thumbnails") or []
+        thumbnail = thumbnails[-1].get("url") if thumbnails else None
+        channel_id = info.get("channel_id") or info.get("uploader_id") or info.get("id")
 
-        items = payload.get("items", [])
-        if not items:
-            raise YouTubeApiError("Channel not found in YouTube API response.")
-
-        item = items[0]
-        snippet = item.get("snippet", {})
-        statistics = item.get("statistics", {})
-        branding = item.get("brandingSettings", {}).get("channel", {})
-        thumbnails = snippet.get("thumbnails", {})
-        high_thumb = thumbnails.get("high") or thumbnails.get("default") or {}
+        if not channel_id:
+            raise YouTubeApiError("yt-dlp response did not include a channel id.")
 
         return YouTubeChannelPayload(
-            youtube_channel_id=item["id"],
+            youtube_channel_id=channel_id,
             channel_url=channel_url,
-            title=snippet.get("title", "Unknown Channel"),
-            description=snippet.get("description"),
-            country=snippet.get("country"),
-            default_language=branding.get("defaultLanguage"),
-            subscriber_count=_safe_int(statistics.get("subscriberCount")),
-            video_count=_safe_int(statistics.get("videoCount")),
-            thumbnail_url=high_thumb.get("url"),
+            title=(
+                info.get("channel")
+                or info.get("uploader")
+                or info.get("title")
+                or "Unknown Channel"
+            ),
+            description=info.get("description"),
+            country=None,
+            default_language=None,
+            subscriber_count=_safe_int(info.get("channel_follower_count")),
+            video_count=_safe_int(info.get("playlist_count")) or _safe_int(info.get("n_entries")),
+            thumbnail_url=thumbnail,
         )
 
-    async def _fetch_uploads_playlist_id(self, youtube_channel_id: str) -> str:
-        payload = await self._request_json(
-            "/channels",
-            params={
-                "part": "contentDetails",
-                "id": youtube_channel_id,
-                "key": self.api_key,
-            },
-        )
-        items = payload.get("items", [])
-        if not items:
-            raise YouTubeApiError("Upload playlist not found for channel.")
-        return items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
-
-    async def _fetch_latest_video_ids(self, uploads_playlist_id: str, max_results: int) -> list[str]:
-        remaining = max_results
-        page_token: str | None = None
-        video_ids: list[str] = []
-
-        while remaining > 0:
-            page_size = min(50, remaining)
-            params = {
-                "part": "contentDetails",
-                "playlistId": uploads_playlist_id,
-                "maxResults": page_size,
-                "key": self.api_key,
-            }
-            if page_token:
-                params["pageToken"] = page_token
-
-            payload = await self._request_json("/playlistItems", params=params)
-            video_ids.extend(
-                [
-                    item["contentDetails"]["videoId"]
-                    for item in payload.get("items", [])
-                    if item.get("contentDetails", {}).get("videoId")
-                ]
-            )
-
-            page_token = payload.get("nextPageToken")
-            remaining = max_results - len(video_ids)
-            if not page_token:
-                break
-
-        return video_ids[:max_results]
-
-    async def _fetch_video_details(self, video_ids: list[str]) -> list[YouTubeVideoPayload]:
-        if not video_ids:
-            return []
-
-        payload = await self._request_json(
-            "/videos",
-            params={
-                "part": "snippet,contentDetails,statistics",
-                "id": ",".join(video_ids),
-                "key": self.api_key,
-            },
-        )
-
-        items_by_id: dict[str, dict[str, Any]] = {item["id"]: item for item in payload.get("items", [])}
+    def _build_video_payloads(self, info: dict[str, Any]) -> list[YouTubeVideoPayload]:
         videos: list[YouTubeVideoPayload] = []
-
-        for video_id in video_ids:
-            item = items_by_id.get(video_id)
-            if item is None:
+        for entry in info.get("entries") or []:
+            if not entry:
                 continue
-
-            snippet = item.get("snippet", {})
-            stats = item.get("statistics", {})
-            thumbnails = snippet.get("thumbnails", {})
-            high_thumb = thumbnails.get("high") or thumbnails.get("default") or {}
+            video_id = entry.get("id")
+            if not video_id:
+                continue
 
             videos.append(
                 YouTubeVideoPayload(
                     youtube_video_id=video_id,
-                    title=snippet.get("title", "Untitled Video"),
-                    description=snippet.get("description"),
-                    published_at=datetime.fromisoformat(
-                        snippet["publishedAt"].replace("Z", "+00:00")
-                    ),
-                    thumbnail_url=high_thumb.get("url"),
-                    duration_seconds=_parse_iso8601_duration(item.get("contentDetails", {}).get("duration")),
-                    view_count=_safe_int(stats.get("viewCount")),
-                    like_count=_safe_int(stats.get("likeCount")),
-                    comment_count=_safe_int(stats.get("commentCount")),
+                    title=entry.get("title") or "Untitled Video",
+                    description=entry.get("description"),
+                    published_at=_parse_upload_date(entry),
+                    thumbnail_url=entry.get("thumbnail"),
+                    duration_seconds=_safe_int(entry.get("duration")),
+                    view_count=_safe_int(entry.get("view_count")),
+                    like_count=_safe_int(entry.get("like_count")),
+                    comment_count=_safe_int(entry.get("comment_count")),
                 )
             )
 
         return videos
 
-    async def _request_json(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout) as client:
-            response = await client.get(path, params=params)
+    def _hydrate_video_payload(self, video: YouTubeVideoPayload) -> YouTubeVideoPayload:
+        video_url = f"https://www.youtube.com/watch?v={video.youtube_video_id}"
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "socket_timeout": self.timeout,
+        }
 
-        if response.status_code >= 400:
-            raise YouTubeApiError(f"YouTube API error: {response.status_code} {response.text}")
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(video_url, download=False)
+        except Exception:
+            return video
 
-        return response.json()
+        thumbnails = info.get("thumbnails") or []
+        thumbnail = thumbnails[-1].get("url") if thumbnails else video.thumbnail_url
+        return YouTubeVideoPayload(
+            youtube_video_id=video.youtube_video_id,
+            title=info.get("title") or video.title,
+            description=info.get("description") or video.description,
+            published_at=_parse_upload_date(info),
+            thumbnail_url=thumbnail,
+            duration_seconds=_safe_int(info.get("duration")) or video.duration_seconds,
+            view_count=_safe_int(info.get("view_count")) or video.view_count,
+            like_count=_safe_int(info.get("like_count")) or video.like_count,
+            comment_count=_safe_int(info.get("comment_count")) or video.comment_count,
+        )
 
 
 def _safe_int(value: Any) -> int | None:
@@ -266,3 +243,36 @@ def _parse_iso8601_duration(duration: str | None) -> int | None:
             number = ""
 
     return total or None
+
+
+def _parse_upload_date(entry: dict[str, Any]) -> datetime:
+    timestamp = _safe_int(entry.get("timestamp"))
+    if timestamp is not None:
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+    upload_date = entry.get("upload_date")
+    if isinstance(upload_date, str):
+        try:
+            return datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+
+    release_timestamp = _safe_int(entry.get("release_timestamp"))
+    if release_timestamp is not None:
+        return datetime.fromtimestamp(release_timestamp, tz=timezone.utc)
+
+    return datetime.now(timezone.utc)
+
+
+def _dedupe_entries(entries) -> list[dict[str, Any]]:
+    seen = set()
+    deduped = []
+    for entry in entries:
+        if not entry:
+            continue
+        video_id = entry.get("id")
+        if not video_id or video_id in seen:
+            continue
+        seen.add(video_id)
+        deduped.append(entry)
+    return deduped

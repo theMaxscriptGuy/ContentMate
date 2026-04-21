@@ -22,6 +22,7 @@ router = APIRouter()
 async def fetch_channel_transcripts(
     channel_id: UUID,
     include_existing: bool = Query(default=False),
+    include_text: bool = Query(default=False),
     session: AsyncSession = Depends(get_db_session),
 ) -> ChannelTranscriptSyncResponse:
     service = TranscriptService(session=session)
@@ -29,6 +30,7 @@ async def fetch_channel_transcripts(
         return await service.fetch_transcripts_for_channel(
             channel_id=channel_id,
             include_existing=include_existing,
+            include_text=include_text,
         )
     except VideoNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -42,11 +44,16 @@ async def fetch_channel_transcripts(
 async def fetch_video_transcript(
     video_id: UUID,
     force: bool = Query(default=False),
+    include_text: bool = Query(default=False),
     session: AsyncSession = Depends(get_db_session),
 ) -> TranscriptRefreshResponse:
     service = TranscriptService(session=session)
     try:
-        return await service.fetch_transcript_for_video(video_id=video_id, force=force)
+        return await service.fetch_transcript_for_video(
+            video_id=video_id,
+            force=force,
+            include_text=include_text,
+        )
     except VideoNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -54,10 +61,14 @@ async def fetch_video_transcript(
 @router.get("/videos/{video_id}/transcript", response_model=TranscriptResponse)
 async def get_video_transcript(
     video_id: UUID,
+    include_text: bool = Query(default=True),
     session: AsyncSession = Depends(get_db_session),
 ) -> TranscriptResponse:
     service = TranscriptService(session=session)
-    transcript = await service.get_transcript_for_video(video_id=video_id)
+    transcript = await service.get_transcript_for_video(
+        video_id=video_id,
+        include_text=include_text,
+    )
     if transcript is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcript not found")
     return transcript

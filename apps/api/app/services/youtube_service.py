@@ -61,7 +61,7 @@ class YouTubeService:
         channel = await self.repository.get_by_id(str(channel_id))
         if channel is None:
             return None, []
-        videos = await self.repository.list_videos_for_channel(str(channel_id))
+        videos = await self.repository.list_active_videos_for_channel(str(channel_id))
         return (
             ChannelSummary.model_validate(channel),
             [VideoSummary.model_validate(video) for video in videos],

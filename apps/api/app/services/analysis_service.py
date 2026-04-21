@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.generated_content import GeneratedContent
+from app.integrations.openai.analysis_client import OpenAIAnalysisClient, OpenAIAnalysisError
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.generated_content_repository import GeneratedContentRepository
 from app.schemas.analysis import (
@@ -41,6 +42,7 @@ class AnalysisService:
         self.channel_repository = ChannelRepository(session=session)
         self.generated_content_repository = GeneratedContentRepository(session=session)
         self.transcript_service = TranscriptService(session=session)
+        self.openai_analysis_client = OpenAIAnalysisClient()
 
     async def run_channel_analysis(
         self,
@@ -66,7 +68,7 @@ class AnalysisService:
         job_id = await create_job(job_namespace="analysis", resource_id=str(channel_id))
         await set_job_status(job_id=job_id, status="processing")
 
-        videos = await self.channel_repository.list_videos_for_channel(str(channel_id))
+        videos = await self.channel_repository.list_active_videos_for_channel(str(channel_id))
         transcripts = []
         for video in videos:
             transcript = await self.transcript_service.get_transcript_record(video.id)
@@ -75,36 +77,56 @@ class AnalysisService:
 
         if not transcripts:
             await set_job_status(job_id=job_id, status="failed")
-            raise ChannelAnalysisNotFoundError("No transcripts available to analyze for this channel")
+            raise ChannelAnalysisNotFoundError(
+                "No transcripts available to analyze for this channel"
+            )
 
         joined_text = "\n\n".join(transcript.cleaned_text or "" for _, transcript in transcripts)
-        topic_counter = extract_candidate_topics(joined_text)
-        primary_topics, secondary_topics = build_topic_insights(topic_counter)
+        transcript_coverage_ratio = round(len(transcripts) / max(len(videos), 1), 2)
+        video_metadata = [
+            {
+                "title": video.title,
+                "description": video.description,
+                "duration_seconds": video.duration_seconds,
+                "view_count": video.view_count,
+                "like_count": video.like_count,
+                "comment_count": video.comment_count,
+            }
+            for video, _ in transcripts
+        ]
 
-        strengths, gaps = infer_strengths_and_gaps(topic_counter, len(transcripts))
-
-        payload = ChannelAnalysisPayload(
-            niche=detect_niche(topic_counter, joined_text),
-            primary_topics=[TopicInsight(topic=topic, mentions=count) for topic, count in primary_topics],
-            secondary_topics=[
-                TopicInsight(topic=topic, mentions=count) for topic, count in secondary_topics
-            ],
-            tone=infer_tone(joined_text),
-            target_audience=infer_target_audience(joined_text, [video.title for video, _ in transcripts]),
-            content_patterns=infer_content_patterns([video.title for video, _ in transcripts]),
-            strengths=strengths,
-            gaps=gaps,
-            transcript_coverage_ratio=round(len(transcripts) / max(len(videos), 1), 2),
-            analyzed_video_count=len(videos),
-            analyzed_transcript_count=len(transcripts),
-        )
+        try:
+            analysis_result = self.openai_analysis_client.analyze_channel(
+                channel_title=channel.title,
+                videos=video_metadata,
+                transcript_text=joined_text,
+                transcript_coverage_ratio=transcript_coverage_ratio,
+                analyzed_video_count=len(videos),
+                analyzed_transcript_count=len(transcripts),
+            )
+            payload = analysis_result.payload
+            model_name = f"openai:{analysis_result.model_name}"
+        except OpenAIAnalysisError:
+            payload = self._build_heuristic_analysis(
+                joined_text=joined_text,
+                titles=[video.title for video, _ in transcripts],
+                transcript_coverage_ratio=transcript_coverage_ratio,
+                analyzed_video_count=len(videos),
+                analyzed_transcript_count=len(transcripts),
+            )
+            model_name = "heuristic-v1"
 
         analysis_row = GeneratedContent(
             channel_id=channel.id,
             content_type="channel_analysis",
+            prompt_input={
+                "transcript_count": len(transcripts),
+                "video_count": len(videos),
+                "openai_configured": self.openai_analysis_client.is_configured(),
+            },
             result_json=payload.model_dump(),
             status="completed",
-            model_name="heuristic-v1",
+            model_name=model_name,
         )
         self.session.add(analysis_row)
         channel.analysis_status = "completed"
@@ -117,6 +139,37 @@ class AnalysisService:
             analysis=self._serialize_analysis(analysis_row),
             fetched_transcripts=transcript_stats.fetched,
             failed_transcripts=transcript_stats.failed,
+        )
+
+    def _build_heuristic_analysis(
+        self,
+        joined_text: str,
+        titles: list[str],
+        transcript_coverage_ratio: float,
+        analyzed_video_count: int,
+        analyzed_transcript_count: int,
+    ) -> ChannelAnalysisPayload:
+        topic_counter = extract_candidate_topics(joined_text)
+        primary_topics, secondary_topics = build_topic_insights(topic_counter)
+
+        strengths, gaps = infer_strengths_and_gaps(topic_counter, analyzed_transcript_count)
+
+        return ChannelAnalysisPayload(
+            niche=detect_niche(topic_counter, joined_text),
+            primary_topics=[
+                TopicInsight(topic=topic, mentions=count) for topic, count in primary_topics
+            ],
+            secondary_topics=[
+                TopicInsight(topic=topic, mentions=count) for topic, count in secondary_topics
+            ],
+            tone=infer_tone(joined_text),
+            target_audience=infer_target_audience(joined_text, titles),
+            content_patterns=infer_content_patterns(titles),
+            strengths=strengths,
+            gaps=gaps,
+            transcript_coverage_ratio=transcript_coverage_ratio,
+            analyzed_video_count=analyzed_video_count,
+            analyzed_transcript_count=analyzed_transcript_count,
         )
 
     async def get_channel_analysis(self, channel_id: UUID) -> ChannelAnalysisResponse | None:
