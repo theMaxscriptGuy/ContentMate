@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
+    cors_allowed_origins: str = Field(
+        default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
+    )
 
     postgres_dsn: str = Field(
         default="postgresql+asyncpg://contentmate:contentmate@localhost:5432/contentmate"
