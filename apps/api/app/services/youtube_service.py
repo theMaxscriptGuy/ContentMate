@@ -34,8 +34,9 @@ class YouTubeService:
 
     async def sync_channel_from_url(self, channel_url: str) -> ChannelSyncResult:
         try:
-            channel_payload, videos_payload = await self.client.fetch_channel_with_latest_videos(
-                channel_url=channel_url
+            channel_payload, videos_payload = await self.client.fetch_channel_with_uploaded_videos(
+                channel_url=channel_url,
+                max_results=self.client.candidate_pool_size,
             )
         except YouTubeApiError as exc:
             raise ChannelNotFoundError(str(exc)) from exc
@@ -102,7 +103,10 @@ class YouTubeService:
     async def _upsert_videos(
         self, channel_id: str, videos_payload: list[YouTubeVideoPayload]
     ) -> list[Video]:
-        existing_videos = {video.youtube_video_id: video for video in await self.repository.list_videos_for_channel(channel_id)}
+        existing_videos = {
+            video.youtube_video_id: video
+            for video in await self.repository.list_videos_for_channel(channel_id)
+        }
         persisted: list[Video] = []
 
         for payload in videos_payload:
@@ -136,4 +140,8 @@ class YouTubeService:
             persisted.append(video)
 
         await self.session.flush()
-        return sorted(persisted, key=lambda video: video.published_at, reverse=True)
+        return sorted(
+            persisted,
+            key=lambda video: video.published_at,
+            reverse=True,
+        )

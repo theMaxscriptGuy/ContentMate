@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0")
 
     youtube_min_duration_seconds: int = 301
+    youtube_scan_limit: int = 0
     youtube_candidate_pool_size: int = 30
     transcript_use_ytdlp_fallback: bool = True
 

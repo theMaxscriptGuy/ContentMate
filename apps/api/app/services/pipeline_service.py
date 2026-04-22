@@ -46,7 +46,15 @@ class PipelineService:
             if transcript_sync.fetched_transcripts == 0 and all(
                 transcript.status != "completed" for transcript in transcript_sync.transcripts
             ):
-                raise PipelineRunError("No completed transcripts available after transcript fetch.")
+                failures = [
+                    f"{transcript.video_id}: {transcript.error_message or transcript.status}"
+                    for transcript in transcript_sync.transcripts
+                ]
+                failure_detail = "; ".join(failures) or "No videos were processed."
+                raise PipelineRunError(
+                    "No completed transcripts available after transcript fetch. "
+                    f"Transcript failures: {failure_detail}"
+                )
 
             analysis_response = await self.analysis_service.run_channel_analysis(
                 channel_id=sync_result.channel.id,
@@ -58,6 +66,7 @@ class PipelineService:
                 force_refresh=force_ideas_refresh,
             )
         except (
+            PipelineRunError,
             ChannelNotFoundError,
             VideoNotFoundError,
             ChannelAnalysisNotFoundError,

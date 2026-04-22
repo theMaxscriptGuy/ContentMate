@@ -231,13 +231,13 @@ def chunk_text(text: str, target_words: int = 220) -> list[str]:
 
 
 def extract_candidate_topics(text: str, limit: int = 12) -> Counter[str]:
-    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9\-]{2,}", text.lower())
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9\-]{1,}", text.lower())
     filtered = [
         _normalize_topic_token(token)
         for token in tokens
         if token not in STOPWORDS
         and not token.isdigit()
-        and len(token) > 2
+        and (len(token) > 2 or token == "ai")
         and not token.startswith("u00")
         and not re.search(r"\d", token)
     ]

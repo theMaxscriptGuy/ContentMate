@@ -1,4 +1,4 @@
-from sqlalchemy import Select, desc, select
+from sqlalchemy import Select, case, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -34,8 +34,9 @@ class ChannelRepository:
     async def list_active_videos_for_channel(
         self,
         channel_id: str,
-        limit: int = 1,
+        limit: int | None = None,
     ) -> list[Video]:
+        active_limit = limit or settings.youtube_candidate_pool_size or 1
         query: Select[tuple[Video]] = (
             select(Video)
             .where(
@@ -43,8 +44,11 @@ class ChannelRepository:
                 Video.duration_seconds.is_not(None),
                 Video.duration_seconds >= settings.youtube_min_duration_seconds,
             )
-            .order_by(desc(Video.published_at))
-            .limit(limit)
+            .order_by(
+                case((Video.transcript_status == "failed", 1), else_=0),
+                desc(Video.published_at),
+            )
+            .limit(active_limit)
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())

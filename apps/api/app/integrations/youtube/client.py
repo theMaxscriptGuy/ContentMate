@@ -44,6 +44,7 @@ class YouTubeClient:
     def __init__(self) -> None:
         self.timeout = settings.request_timeout_seconds
         self.min_duration_seconds = settings.youtube_min_duration_seconds
+        self.scan_limit = settings.youtube_scan_limit
         self.candidate_pool_size = settings.youtube_candidate_pool_size
 
     async def fetch_channel_with_latest_videos(
@@ -51,24 +52,49 @@ class YouTubeClient:
         channel_url: str,
         max_results: int = 1,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
+        return await self.fetch_channel_with_uploaded_videos(
+            channel_url=channel_url,
+            max_results=max_results,
+        )
+
+    async def fetch_channel_with_longest_videos(
+        self,
+        channel_url: str,
+        max_results: int = 1,
+    ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
+        return await self.fetch_channel_with_uploaded_videos(
+            channel_url=channel_url,
+            max_results=max_results,
+        )
+
+    async def fetch_channel_with_uploaded_videos(
+        self,
+        channel_url: str,
+        max_results: int = 1,
+    ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
         info = self._extract_channel_info(channel_url=channel_url)
         channel = self._build_channel_payload(info=info, channel_url=channel_url)
         videos = self._build_video_payloads(info=info)
-        filtered_videos = [
-            video
-            for video in videos
-            if (video.duration_seconds or 0) >= self.min_duration_seconds
-        ]
-        hydrated_videos = [
-            self._hydrate_video_payload(video)
-            for video in filtered_videos[: self.candidate_pool_size]
-        ]
-        selected_videos = sorted(
-            hydrated_videos,
+        selected_videos = self._select_latest_uploaded_videos(
+            videos=videos,
+            max_results=max_results,
+        )
+        return channel, selected_videos
+
+    def _select_latest_uploaded_videos(
+        self,
+        videos: list[YouTubeVideoPayload],
+        max_results: int = 1,
+    ) -> list[YouTubeVideoPayload]:
+        return sorted(
+            [
+                video
+                for video in videos
+                if (video.duration_seconds or 0) >= self.min_duration_seconds
+            ],
             key=lambda video: video.published_at,
             reverse=True,
         )[:max_results]
-        return channel, selected_videos
 
     def _extract_channel_reference(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
@@ -91,26 +117,30 @@ class YouTubeClient:
         ydl_opts = {
             "extract_flat": "in_playlist",
             "ignoreerrors": True,
-            "playlistend": self.candidate_pool_size,
             "quiet": True,
             "no_warnings": True,
+            "logger": _YtDlpQuietLogger(),
             "skip_download": True,
             "socket_timeout": self.timeout,
         }
+        if self.scan_limit > 0:
+            ydl_opts["playlistend"] = self.scan_limit
 
         infos = []
+        errors: list[str] = []
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            for tab in ("streams", "videos"):
-                uploads_url = self._normalize_channel_uploads_url(channel_url, tab=tab)
-                try:
-                    info = ydl.extract_info(uploads_url, download=False)
-                except Exception as exc:
-                    raise YouTubeApiError(f"yt-dlp could not inspect channel: {exc}") from exc
+            uploads_url = self._normalize_channel_uploads_url(channel_url)
+            try:
+                info = ydl.extract_info(uploads_url, download=False)
+            except Exception as exc:
+                errors.append(str(exc))
+            else:
                 if info:
                     infos.append(info)
 
         if not infos:
-            raise YouTubeApiError("Channel not found in yt-dlp response.")
+            detail = " | ".join(errors) if errors else "No upload tabs returned data."
+            raise YouTubeApiError(f"yt-dlp could not inspect channel uploads: {detail}")
         primary_info = infos[0]
         primary_info["entries"] = _dedupe_entries(
             entry
@@ -119,7 +149,7 @@ class YouTubeClient:
         )
         return primary_info
 
-    def _normalize_channel_uploads_url(self, channel_url: str, tab: str) -> str:
+    def _normalize_channel_uploads_url(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
         if parsed.netloc and "youtube.com" not in parsed.netloc:
             raise YouTubeApiError("Unsupported YouTube channel URL format.")
@@ -130,7 +160,7 @@ class YouTubeClient:
             if base_url.endswith(suffix):
                 base_url = base_url[: -len(suffix)]
                 break
-        return f"{base_url}/{tab}"
+        return f"{base_url}/videos"
 
     def _build_channel_payload(
         self,
@@ -191,6 +221,7 @@ class YouTubeClient:
         ydl_opts = {
             "quiet": True,
             "no_warnings": True,
+            "logger": _YtDlpQuietLogger(),
             "skip_download": True,
             "socket_timeout": self.timeout,
         }
@@ -223,6 +254,20 @@ def _safe_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+class _YtDlpQuietLogger:
+    def debug(self, _: str) -> None:
+        pass
+
+    def info(self, _: str) -> None:
+        pass
+
+    def warning(self, _: str) -> None:
+        pass
+
+    def error(self, _: str) -> None:
+        pass
 
 
 def _parse_iso8601_duration(duration: str | None) -> int | None:
