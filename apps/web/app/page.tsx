@@ -134,6 +134,12 @@ type SavedChannelResponse = {
   ideas: PipelineResponse["ideas"] | null;
 };
 
+type ProgressStage = {
+  id: string;
+  label: string;
+  detail: string;
+};
+
 declare global {
   interface Window {
     google?: {
@@ -160,6 +166,28 @@ declare global {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+const PIPELINE_STAGES: ProgressStage[] = [
+  {
+    id: "channel",
+    label: "Reading channel uploads",
+    detail: "Finding recent uploads that are at least five minutes long."
+  },
+  {
+    id: "transcript",
+    label: "Fetching transcripts",
+    detail: "Trying eligible videos until a transcript is available."
+  },
+  {
+    id: "analysis",
+    label: "Analyzing creator style",
+    detail: "Extracting topics, audience, strengths, and gaps."
+  },
+  {
+    id: "ideas",
+    label: "Generating content ideas",
+    detail: "Turning the analysis into videos, shorts, titles, thumbnails, and a plan."
+  }
+];
 
 export default function Home() {
   const [channelUrl, setChannelUrl] = useState("https://www.youtube.com/@techwithvideep");
@@ -173,6 +201,7 @@ export default function Home() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [usage, setUsage] = useState<UsageStatus | null>(null);
+  const [activeStageIndex, setActiveStageIndex] = useState(0);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const pendingAnalyzeRef = useRef(false);
   const loginWithGoogleRef = useRef<(credential: string) => Promise<void>>();
@@ -209,6 +238,21 @@ export default function Home() {
     void loadUsage(authToken);
     void loadHistory(authToken);
   }, [authToken, user]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      return;
+    }
+
+    setActiveStageIndex(0);
+    const timers = [2600, 7600, 15000].map((delay, index) =>
+      window.setTimeout(() => {
+        setActiveStageIndex(index + 1);
+      }, delay)
+    );
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [isLoading]);
 
   async function loginWithGoogle(credential: string) {
     setIsAuthLoading(true);
@@ -361,6 +405,7 @@ export default function Home() {
       }
 
       setChannelUrl(payload.channel.channel_url);
+      setActiveStageIndex(PIPELINE_STAGES.length);
       setResult({
         job_id: `saved-${channelId}`,
         channel_sync: {
@@ -402,6 +447,7 @@ export default function Home() {
 
   async function runPipelineWithToken(token: string) {
     setIsLoading(true);
+    setActiveStageIndex(0);
     setError(null);
     setResult(null);
 
@@ -423,11 +469,13 @@ export default function Home() {
       if (!response.ok) {
         throw new Error(payload.detail ?? "Pipeline failed");
       }
+      setActiveStageIndex(PIPELINE_STAGES.length);
       setResult(payload);
       await loadUsage(token);
       await loadHistory(token);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Something went wrong");
+      setActiveStageIndex(0);
     } finally {
       setIsLoading(false);
     }
@@ -494,9 +542,9 @@ export default function Home() {
       </section>
 
       <section className="statusGrid">
-        <StatusCard label="Ingest" state={result ? "Complete" : "Waiting"} />
-        <StatusCard label="Transcript" state={transcript?.status ?? "Waiting"} />
-        <StatusCard label="Analysis" state={result?.analysis.model_name ?? "Waiting"} />
+        <StatusCard label="Ingest" state={stageState(0, isLoading, result, activeStageIndex)} />
+        <StatusCard label="Transcript" state={stageState(1, isLoading, result, activeStageIndex)} />
+        <StatusCard label="Analysis" state={stageState(2, isLoading, result, activeStageIndex)} />
         <StatusCard
           label="Daily Limit"
           state={
@@ -506,6 +554,34 @@ export default function Home() {
           }
         />
       </section>
+
+      {(isLoading || result) && (
+        <section className="progressPanel">
+          <div className="progressHeader">
+            <p className="sectionLabel">Pipeline</p>
+            <strong>{isLoading ? "Working" : "Complete"}</strong>
+          </div>
+          <div className="progressRail">
+            {PIPELINE_STAGES.map((stage, index) => {
+              const state = progressStageState(index, activeStageIndex, isLoading, Boolean(result));
+              return (
+                <div className={`progressStep ${state}`} key={stage.id}>
+                  <span>{index + 1}</span>
+                  <div>
+                    <strong>{stage.label}</strong>
+                    <small>{stage.detail}</small>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {isLoading ? (
+            <p className="progressNote">
+              This can take a little while when YouTube transcript fetching is slow.
+            </p>
+          ) : null}
+        </section>
+      )}
 
       {user ? (
         <section className="historyPanel">
@@ -673,6 +749,48 @@ function StatusCard({ label, state }: { label: string; state: string }) {
       <strong>{state}</strong>
     </div>
   );
+}
+
+function stageState(
+  index: number,
+  isLoading: boolean,
+  result: PipelineResponse | null,
+  activeStageIndex: number
+) {
+  if (result) {
+    return "Complete";
+  }
+  if (!isLoading) {
+    return "Waiting";
+  }
+  if (activeStageIndex === index) {
+    return "Working";
+  }
+  if (activeStageIndex > index) {
+    return "Complete";
+  }
+  return "Queued";
+}
+
+function progressStageState(
+  index: number,
+  activeStageIndex: number,
+  isLoading: boolean,
+  hasResult: boolean
+) {
+  if (hasResult) {
+    return "complete";
+  }
+  if (!isLoading) {
+    return "queued";
+  }
+  if (activeStageIndex === index) {
+    return "active";
+  }
+  if (activeStageIndex > index) {
+    return "complete";
+  }
+  return "queued";
 }
 
 function ListPanel({
