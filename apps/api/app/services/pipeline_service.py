@@ -23,6 +23,7 @@ class PipelineService:
     async def run_channel_pipeline(
         self,
         channel_url: str,
+        user_id: str,
         force_transcript_refresh: bool = False,
         force_ideas_refresh: bool = True,
     ) -> RunPipelineResponse:
@@ -30,7 +31,10 @@ class PipelineService:
         await set_job_status(job_id=job_id, status="processing")
 
         try:
-            sync_result = await self.youtube_service.sync_channel_from_url(channel_url)
+            sync_result = await self.youtube_service.sync_channel_from_url(
+                channel_url,
+                user_id=user_id,
+            )
             channel_job_id = await enqueue_channel_sync_job(channel_id=sync_result.channel.id)
             channel_sync = ChannelSyncResponse(
                 job_id=channel_job_id,

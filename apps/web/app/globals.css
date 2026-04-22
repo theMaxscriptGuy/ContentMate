@@ -49,6 +49,67 @@ input {
   position: fixed;
 }
 
+.topBar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 auto 44px;
+  max-width: 1120px;
+  position: relative;
+  z-index: 2;
+}
+
+.topBar > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.topBar strong {
+  font-size: 1.2rem;
+}
+
+.topBar span,
+.authHint {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.82rem;
+}
+
+.authDock {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.userBadge {
+  align-items: center;
+  background: rgba(255, 251, 242, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: flex;
+  gap: 10px;
+  padding: 6px 8px 6px 6px;
+}
+
+.userBadge img {
+  border-radius: 50%;
+  height: 32px;
+  width: 32px;
+}
+
+.userBadge button {
+  background: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  color: #fff7e8;
+  cursor: pointer;
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 9px 12px;
+}
+
 .hero {
   animation: rise 650ms ease both;
   margin: 0 auto;
@@ -138,6 +199,25 @@ input {
   margin-top: 18px;
   max-width: 920px;
   padding: 18px 22px;
+}
+
+.loginPrompt {
+  align-items: center;
+  background: rgba(47, 111, 95, 0.12);
+  border: 1px solid rgba(47, 111, 95, 0.24);
+  border-radius: 22px;
+  color: var(--moss);
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+  max-width: 920px;
+  padding: 16px 20px;
+}
+
+.loginPrompt span {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.9rem;
 }
 
 .statusGrid {
@@ -357,11 +437,16 @@ input {
     padding: 28px 18px;
   }
 
+  .topBar,
   .commandBar,
   .channelPanel {
     align-items: stretch;
     border-radius: 28px;
     flex-direction: column;
+  }
+
+  .topBar {
+    gap: 18px;
   }
 
   .commandBar button {

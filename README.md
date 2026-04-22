@@ -19,6 +19,8 @@ ContentMate is an AI-powered YouTube content assistant. It can ingest a YouTube 
 ## Local development
 
 1. Copy `.env.example` to `.env` and fill in local secrets such as `OPENAI_API_KEY`.
+   For Google sign-in, create a Google OAuth web client. Set `GOOGLE_CLIENT_ID`
+   in the API env and `NEXT_PUBLIC_GOOGLE_CLIENT_ID` in the web env.
 2. Start infrastructure:
 
 ```bash
@@ -57,7 +59,10 @@ The web app defaults to `http://127.0.0.1:8000/api/v1`. To override it, set:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api/v1
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_oauth_web_client_id.apps.googleusercontent.com
 ```
+
+For local Next.js development, put the `NEXT_PUBLIC_*` values in `apps/web/.env.local`.
 
 ## Current endpoints
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -8,9 +8,12 @@ from app.db.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 class Video(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "videos"
+    __table_args__ = (
+        UniqueConstraint("channel_id", "youtube_video_id", name="uq_videos_channel_youtube_video"),
+    )
 
     channel_id: Mapped[str] = mapped_column(ForeignKey("channels.id"), index=True, nullable=False)
-    youtube_video_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    youtube_video_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

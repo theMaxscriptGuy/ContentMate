@@ -32,7 +32,11 @@ class YouTubeService:
         self.repository = ChannelRepository(session=session)
         self.client = YouTubeClient()
 
-    async def sync_channel_from_url(self, channel_url: str) -> ChannelSyncResult:
+    async def sync_channel_from_url(
+        self,
+        channel_url: str,
+        user_id: str | None = None,
+    ) -> ChannelSyncResult:
         try:
             channel_payload, videos_payload = await self.client.fetch_channel_with_uploaded_videos(
                 channel_url=channel_url,
@@ -41,7 +45,7 @@ class YouTubeService:
         except YouTubeApiError as exc:
             raise ChannelNotFoundError(str(exc)) from exc
 
-        channel = await self._upsert_channel(channel_payload)
+        channel = await self._upsert_channel(channel_payload, user_id=user_id)
         videos = await self._upsert_videos(channel_id=channel.id, videos_payload=videos_payload)
         await self.session.commit()
         await self.session.refresh(channel)
@@ -54,7 +58,7 @@ class YouTubeService:
         channel = await self.repository.get_by_id(str(channel_id))
         if channel is None:
             return None
-        return await self.sync_channel_from_url(channel.channel_url)
+        return await self.sync_channel_from_url(channel.channel_url, user_id=channel.user_id)
 
     async def get_channel_with_videos(
         self, channel_id: UUID
@@ -68,10 +72,18 @@ class YouTubeService:
             [VideoSummary.model_validate(video) for video in videos],
         )
 
-    async def _upsert_channel(self, payload: YouTubeChannelPayload) -> Channel:
-        channel = await self.repository.get_by_youtube_id(payload.youtube_channel_id)
+    async def _upsert_channel(
+        self,
+        payload: YouTubeChannelPayload,
+        user_id: str | None = None,
+    ) -> Channel:
+        channel = await self.repository.get_by_youtube_id(
+            payload.youtube_channel_id,
+            user_id=user_id,
+        )
         if channel is None:
             channel = Channel(
+                user_id=user_id,
                 youtube_channel_id=payload.youtube_channel_id,
                 channel_url=payload.channel_url,
                 title=payload.title,
@@ -88,6 +100,7 @@ class YouTubeService:
             await self.session.flush()
             return channel
 
+        channel.user_id = user_id
         channel.channel_url = payload.channel_url
         channel.title = payload.title
         channel.description = payload.description

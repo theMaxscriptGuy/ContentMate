@@ -117,6 +117,7 @@ class AnalysisService:
             model_name = "heuristic-v1"
 
         analysis_row = GeneratedContent(
+            user_id=channel.user_id,
             channel_id=channel.id,
             content_type="channel_analysis",
             prompt_input={

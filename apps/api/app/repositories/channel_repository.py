@@ -15,10 +15,16 @@ class ChannelRepository:
     async def get_by_id(self, channel_id: str) -> Channel | None:
         return await self.session.get(Channel, channel_id)
 
-    async def get_by_youtube_id(self, youtube_channel_id: str) -> Channel | None:
+    async def get_by_youtube_id(
+        self,
+        youtube_channel_id: str,
+        user_id: str | None = None,
+    ) -> Channel | None:
         query: Select[tuple[Channel]] = select(Channel).where(
             Channel.youtube_channel_id == youtube_channel_id
         )
+        if user_id is not None:
+            query = query.where(Channel.user_id == user_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 

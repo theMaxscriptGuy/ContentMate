@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     youtube_candidate_pool_size: int = 30
     transcript_use_ytdlp_fallback: bool = True
 
+    auth_token_secret: str = Field(default="change-me-in-production")
+    auth_token_ttl_seconds: int = 604800
+    google_client_id: str = Field(default="")
+
     openai_api_key: str = Field(default="")
     openai_analysis_model: str = "gpt-4.1-mini"
     openai_analysis_max_transcript_chars: int = 60000

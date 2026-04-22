@@ -69,6 +69,7 @@ class IdeasService:
             raise IdeasGenerationError(str(exc)) from exc
 
         ideas_row = GeneratedContent(
+            user_id=channel.user_id,
             channel_id=channel.id,
             content_type="content_ideas",
             prompt_input={

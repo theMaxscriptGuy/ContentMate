@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type TopicInsight = {
   topic: string;
@@ -99,14 +99,57 @@ type PipelineResponse = {
   };
 };
 
+type AuthUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  avatar_url: string | null;
+};
+
+type AuthResponse = {
+  access_token: string;
+  user: AuthUser;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential?: string }) => void;
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              theme: "outline" | "filled_blue" | "filled_black";
+              size: "large" | "medium" | "small";
+              width?: number;
+            }
+          ) => void;
+        };
+      };
+    };
+  }
+}
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 export default function Home() {
   const [channelUrl, setChannelUrl] = useState("https://www.youtube.com/@techwithvideep");
   const [result, setResult] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isLoginRequired, setIsLoginRequired] = useState(false);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const pendingAnalyzeRef = useRef(false);
+  const loginWithGoogleRef = useRef<(credential: string) => Promise<void>>();
 
   const selectedVideo = result?.channel_sync.videos[0];
   const transcript = result?.transcript_sync.transcripts[0];
@@ -115,8 +158,125 @@ export default function Home() {
     return topics.slice(0, 6);
   }, [result]);
 
+  useEffect(() => {
+    const savedToken = window.localStorage.getItem("contentmate_token");
+    const savedUser = window.localStorage.getItem("contentmate_user");
+    if (savedToken) {
+      setAuthToken(savedToken);
+    }
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        window.localStorage.removeItem("contentmate_user");
+      }
+    }
+  }, []);
+
+  async function loginWithGoogle(credential: string) {
+    setIsAuthLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail ?? "Google login failed");
+      }
+
+      const authPayload = payload as AuthResponse;
+      window.localStorage.setItem("contentmate_token", authPayload.access_token);
+      window.localStorage.setItem("contentmate_user", JSON.stringify(authPayload.user));
+      setAuthToken(authPayload.access_token);
+      setUser(authPayload.user);
+      setIsLoginRequired(false);
+      if (pendingAnalyzeRef.current) {
+        pendingAnalyzeRef.current = false;
+        await runPipelineWithToken(authPayload.access_token);
+      }
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Google login failed");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }
+
+  loginWithGoogleRef.current = loginWithGoogle;
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleButtonRef.current || user) {
+      return;
+    }
+
+    const renderGoogleButton = () => {
+      if (!window.google || !googleButtonRef.current) {
+        return;
+      }
+
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          if (!response.credential) {
+            setError("Google did not return a login credential.");
+            return;
+          }
+          await loginWithGoogleRef.current?.(response.credential);
+        }
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        width: 260
+      });
+    };
+
+    if (window.google) {
+      renderGoogleButton();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[src="https://accounts.google.com/gsi/client"]'
+    );
+    if (existingScript) {
+      existingScript.addEventListener("load", renderGoogleButton, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = renderGoogleButton;
+    document.head.appendChild(script);
+  }, [user]);
+
+  function signOut() {
+    window.localStorage.removeItem("contentmate_token");
+    window.localStorage.removeItem("contentmate_user");
+    setAuthToken(null);
+    setUser(null);
+    setResult(null);
+  }
+
   async function runPipeline(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!authToken) {
+      pendingAnalyzeRef.current = true;
+      setIsLoginRequired(true);
+      setError("Sign in with Google to analyze this channel.");
+      return;
+    }
+
+    await runPipelineWithToken(authToken);
+  }
+
+  async function runPipelineWithToken(token: string) {
     setIsLoading(true);
     setError(null);
     setResult(null);
@@ -124,7 +284,10 @@ export default function Home() {
     try {
       const response = await fetch(`${API_BASE_URL}/pipeline/run`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           channel_url: channelUrl,
           force_transcript_refresh: false,
@@ -146,6 +309,35 @@ export default function Home() {
 
   return (
     <main className="shell">
+      <header className="topBar">
+        <div>
+          <strong>ContentMate</strong>
+          <span>Creator strategy workspace</span>
+        </div>
+        <div className="authDock">
+          {user ? (
+            <div className="userBadge">
+              {user.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt="" src={user.avatar_url} />
+              ) : null}
+              <span>{user.name ?? user.email}</span>
+              <button onClick={signOut} type="button">
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <>
+              <div ref={googleButtonRef} />
+              {!GOOGLE_CLIENT_ID ? (
+                <span className="authHint">Google login is not configured.</span>
+              ) : null}
+              {isAuthLoading ? <span className="authHint">Signing in...</span> : null}
+            </>
+          )}
+        </div>
+      </header>
+
       <section className="hero">
         <div className="eyebrow">ContentMate Studio</div>
         <h1>Turn a YouTube channel into a content strategy board.</h1>
@@ -162,10 +354,16 @@ export default function Home() {
             type="url"
             value={channelUrl}
           />
-          <button disabled={isLoading} type="submit">
+          <button disabled={isLoading || isAuthLoading} type="submit">
             {isLoading ? "Analyzing..." : "Analyze Channel"}
           </button>
         </form>
+        {isLoginRequired && !user ? (
+          <div className="loginPrompt">
+            <strong>Google sign-in required</strong>
+            <span>Use the Google button above. Analysis will start after login.</span>
+          </div>
+        ) : null}
         {error ? <div className="errorCard">{error}</div> : null}
       </section>
 
