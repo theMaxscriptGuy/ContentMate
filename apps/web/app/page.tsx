@@ -8,6 +8,7 @@ type TopicInsight = {
 };
 
 type ChannelSummary = {
+  id: string;
   title: string;
   subscriber_count: number | null;
   thumbnail_url: string | null;
@@ -111,6 +112,20 @@ type AuthResponse = {
   user: AuthUser;
 };
 
+type HistoryItem = {
+  channel: ChannelSummary;
+  analyzed_at: string | null;
+  idea_count: number;
+  latest_video_title: string | null;
+};
+
+type SavedChannelResponse = {
+  channel: ChannelSummary;
+  videos: VideoSummary[];
+  analysis: PipelineResponse["analysis"] | null;
+  ideas: PipelineResponse["ideas"] | null;
+};
+
 declare global {
   interface Window {
     google?: {
@@ -147,6 +162,8 @@ export default function Home() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isLoginRequired, setIsLoginRequired] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const pendingAnalyzeRef = useRef(false);
   const loginWithGoogleRef = useRef<(credential: string) => Promise<void>>();
@@ -173,6 +190,15 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!authToken || !user) {
+      setHistory([]);
+      return;
+    }
+
+    void loadHistory(authToken);
+  }, [authToken, user]);
+
   async function loginWithGoogle(credential: string) {
     setIsAuthLoading(true);
     setError(null);
@@ -194,6 +220,7 @@ export default function Home() {
       setAuthToken(authPayload.access_token);
       setUser(authPayload.user);
       setIsLoginRequired(false);
+      await loadHistory(authPayload.access_token);
       if (pendingAnalyzeRef.current) {
         pendingAnalyzeRef.current = false;
         await runPipelineWithToken(authPayload.access_token);
@@ -262,6 +289,75 @@ export default function Home() {
     setAuthToken(null);
     setUser(null);
     setResult(null);
+    setHistory([]);
+  }
+
+  async function loadHistory(token: string) {
+    setIsHistoryLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/me/channels`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail ?? "Could not load history");
+      }
+      setHistory(payload.channels ?? []);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Could not load history");
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }
+
+  async function openSavedChannel(channelId: string) {
+    if (!authToken) {
+      setError("Sign in with Google to open saved analyses.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/me/channels/${channelId}`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const payload = (await response.json()) as SavedChannelResponse & { detail?: string };
+      if (!response.ok) {
+        throw new Error(payload.detail ?? "Could not open saved analysis");
+      }
+      if (!payload.analysis || !payload.ideas) {
+        throw new Error("This saved channel does not have analysis and ideas yet.");
+      }
+
+      setChannelUrl(payload.channel.channel_url);
+      setResult({
+        job_id: `saved-${channelId}`,
+        channel_sync: {
+          channel: payload.channel,
+          videos: payload.videos
+        },
+        transcript_sync: {
+          fetched_transcripts: 0,
+          failed_transcripts: 0,
+          transcripts: payload.videos.map((video) => ({
+            status: video.transcript_status,
+            language: null,
+            source: null,
+            chunk_count: null,
+            error_message: null
+          }))
+        },
+        analysis: payload.analysis,
+        ideas: payload.ideas
+      });
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Could not open saved analysis");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   async function runPipeline(event: FormEvent<HTMLFormElement>) {
@@ -300,6 +396,7 @@ export default function Home() {
         throw new Error(payload.detail ?? "Pipeline failed");
       }
       setResult(payload);
+      await loadHistory(token);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Something went wrong");
     } finally {
@@ -373,6 +470,52 @@ export default function Home() {
         <StatusCard label="Analysis" state={result?.analysis.model_name ?? "Waiting"} />
         <StatusCard label="Ideas" state={result?.ideas.model_name ?? "Waiting"} />
       </section>
+
+      {user ? (
+        <section className="historyPanel">
+          <div className="historyHeader">
+            <div>
+              <p className="sectionLabel">My Channels</p>
+              <h2>Saved analyses</h2>
+            </div>
+            <button
+              disabled={!authToken || isHistoryLoading}
+              onClick={() => authToken && loadHistory(authToken)}
+              type="button"
+            >
+              {isHistoryLoading ? "Loading" : "Refresh"}
+            </button>
+          </div>
+          {history.length > 0 ? (
+            <div className="historyList">
+              {history.map((item) => (
+                <button
+                  className="historyItem"
+                  key={item.channel.id}
+                  onClick={() => openSavedChannel(item.channel.id)}
+                  type="button"
+                >
+                  {item.channel.thumbnail_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img alt="" src={item.channel.thumbnail_url} />
+                  ) : null}
+                  <span>
+                    <strong>{item.channel.title}</strong>
+                    <small>
+                      {item.idea_count} ideas
+                      {item.latest_video_title ? ` · ${item.latest_video_title}` : ""}
+                    </small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="historyEmpty">
+              {isHistoryLoading ? "Loading saved channels..." : "Analyzed channels will appear here."}
+            </p>
+          )}
+        </section>
+      ) : null}
 
       {result ? (
         <div className="dashboard">

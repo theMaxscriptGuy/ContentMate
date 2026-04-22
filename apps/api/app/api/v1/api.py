@@ -1,10 +1,21 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import analysis, auth, channels, health, ideas, jobs, pipeline, transcripts
+from app.api.v1.routes import (
+    analysis,
+    auth,
+    channels,
+    health,
+    history,
+    ideas,
+    jobs,
+    pipeline,
+    transcripts,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(history.router, prefix="/me", tags=["history"])
 api_router.include_router(channels.router, prefix="/channels", tags=["channels"])
 api_router.include_router(transcripts.router, tags=["transcripts"])
 api_router.include_router(analysis.router, tags=["analysis"])

@@ -259,6 +259,89 @@ input {
   white-space: nowrap;
 }
 
+.historyPanel {
+  margin: 0 auto 42px;
+  max-width: 1120px;
+  position: relative;
+  z-index: 1;
+}
+
+.historyHeader {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.historyHeader h2 {
+  font-size: 2rem;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  margin: 0;
+}
+
+.historyHeader button {
+  background: rgba(255, 251, 242, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: "Courier New", monospace;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+
+.historyList {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.historyItem {
+  align-items: center;
+  background: rgba(255, 251, 242, 0.66);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+}
+
+.historyItem:hover {
+  border-color: rgba(47, 111, 95, 0.32);
+}
+
+.historyItem img {
+  border-radius: 12px;
+  height: 48px;
+  object-fit: cover;
+  width: 48px;
+}
+
+.historyItem span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.historyItem strong,
+.historyItem small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyItem small,
+.historyEmpty {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.82rem;
+}
+
 .dashboard {
   animation: rise 650ms ease both;
   display: grid;
@@ -455,8 +538,15 @@ input {
 
   .statusGrid,
   .dashboard,
+  .historyList,
   .ideaGrid,
   .calendarGrid {
     grid-template-columns: 1fr;
+  }
+
+  .historyHeader {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
   }
 }
