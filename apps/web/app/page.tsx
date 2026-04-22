@@ -484,31 +484,38 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="topBar">
-        <div>
+        <div className="brandBlock">
           <strong>ContentMate</strong>
+          <small>Capstone project by Videep Mishraa</small>
           <span>Creator strategy workspace</span>
         </div>
-        <div className="authDock">
-          {user ? (
-            <div className="userBadge">
-              {user.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img alt="" src={user.avatar_url} />
-              ) : null}
-              <span>{user.name ?? user.email}</span>
-              <button onClick={signOut} type="button">
-                Sign out
-              </button>
-            </div>
-          ) : (
-            <>
-              <div ref={googleButtonRef} />
-              {!GOOGLE_CLIENT_ID ? (
-                <span className="authHint">Google login is not configured.</span>
-              ) : null}
-              {isAuthLoading ? <span className="authHint">Signing in...</span> : null}
-            </>
-          )}
+        <div className="topActions">
+          <div className="contactLinks compact">
+            <a href="tel:+919175477740">+91-9175477740</a>
+            <a href="mailto:videepvlogs@gmail.com">videepvlogs@gmail.com</a>
+          </div>
+          <div className="authDock">
+            {user ? (
+              <div className="userBadge">
+                {user.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img alt="" src={user.avatar_url} />
+                ) : null}
+                <span>{user.name ?? user.email}</span>
+                <button onClick={signOut} type="button">
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <>
+                <div ref={googleButtonRef} />
+                {!GOOGLE_CLIENT_ID ? (
+                  <span className="authHint">Google login is not configured.</span>
+                ) : null}
+                {isAuthLoading ? <span className="authHint">Signing in...</span> : null}
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -738,6 +745,18 @@ export default function Home() {
           <p>The first run can take a little while because it fetches video data, transcript, analysis, and ideas.</p>
         </section>
       )}
+
+      <footer className="contactPanel">
+        <div>
+          <p className="sectionLabel">Contact</p>
+          <h2>Videep Mishraa</h2>
+          <span>Capstone project</span>
+        </div>
+        <div className="contactLinks">
+          <a href="tel:+919175477740">+91-9175477740</a>
+          <a href="mailto:videepvlogs@gmail.com">videepvlogs@gmail.com</a>
+        </div>
+      </footer>
     </main>
   );
 }

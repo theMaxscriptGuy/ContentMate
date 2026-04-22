@@ -59,7 +59,7 @@ input {
   z-index: 2;
 }
 
-.topBar > div:first-child {
+.brandBlock {
   display: grid;
   gap: 4px;
 }
@@ -68,11 +68,27 @@ input {
   font-size: 1.2rem;
 }
 
+.brandBlock small {
+  color: var(--clay);
+  font-family: "Courier New", monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .topBar span,
 .authHint {
   color: var(--muted);
   font-family: "Courier New", monospace;
   font-size: 0.82rem;
+}
+
+.topActions {
+  align-items: flex-end;
+  display: grid;
+  gap: 10px;
+  justify-items: end;
 }
 
 .authDock {
@@ -580,6 +596,59 @@ input {
   margin: 20px 0 0;
 }
 
+.contactPanel {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  margin: 64px auto 0;
+  max-width: 1120px;
+  padding-top: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.contactPanel h2 {
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 0 0 6px;
+}
+
+.contactPanel span {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.82rem;
+}
+
+.contactLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.contactLinks a {
+  background: rgba(255, 251, 242, 0.66);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: "Courier New", monospace;
+  font-size: 0.88rem;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.contactLinks.compact a {
+  font-size: 0.78rem;
+  padding: 8px 10px;
+}
+
+.contactLinks a:hover {
+  border-color: rgba(47, 111, 95, 0.32);
+  color: var(--moss);
+}
+
 .orbit {
   animation: spin 8s linear infinite;
   border: 2px dashed rgba(31, 26, 20, 0.32);
@@ -637,8 +706,14 @@ input {
     flex-direction: column;
   }
 
-  .topBar {
+  .topBar,
+  .topActions {
     gap: 18px;
+  }
+
+  .topActions {
+    align-items: stretch;
+    justify-items: stretch;
   }
 
   .commandBar button {
@@ -658,5 +733,15 @@ input {
     align-items: stretch;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .contactPanel {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .contactLinks {
+    justify-content: flex-start;
   }
 }
