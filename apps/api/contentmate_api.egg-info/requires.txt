@@ -4,6 +4,7 @@ fastapi<1.0.0,>=0.115.0
 greenlet<4.0.0,>=3.1.1
 httpx<1.0.0,>=0.28.0
 openai<2.0.0,>=1.99.0
+psycopg2-binary<3.0.0,>=2.9.10
 pydantic-settings<3.0.0,>=2.6.0
 python-dotenv<2.0.0,>=1.0.1
 redis<6.0.0,>=5.2.0
