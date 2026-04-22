@@ -1,0 +1,377 @@
+:root {
+  --ink: #1f1a14;
+  --muted: #6f6255;
+  --paper: #f8efdf;
+  --card: rgba(255, 251, 242, 0.82);
+  --line: rgba(88, 68, 46, 0.16);
+  --ember: #d95f25;
+  --clay: #b9472e;
+  --moss: #2f6f5f;
+  --sun: #f4b942;
+  --shadow: 0 24px 80px rgba(76, 45, 20, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(244, 185, 66, 0.42), transparent 24rem),
+    radial-gradient(circle at 92% 18%, rgba(47, 111, 95, 0.22), transparent 26rem),
+    linear-gradient(135deg, #fff6e5 0%, #f3dec0 48%, #eec89a 100%);
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.shell {
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 48px;
+  position: relative;
+}
+
+.shell::before {
+  background-image:
+    linear-gradient(rgba(31, 26, 20, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 26, 20, 0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  content: "";
+  inset: 0;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  pointer-events: none;
+  position: fixed;
+}
+
+.hero {
+  animation: rise 650ms ease both;
+  margin: 0 auto;
+  max-width: 1120px;
+  position: relative;
+  z-index: 1;
+}
+
+.eyebrow,
+.sectionLabel {
+  color: var(--clay);
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  font-size: clamp(3rem, 9vw, 7.8rem);
+  letter-spacing: -0.08em;
+  line-height: 0.88;
+  margin: 0;
+  max-width: 970px;
+}
+
+.hero p {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.6;
+  max-width: 760px;
+}
+
+.commandBar {
+  align-items: center;
+  background: rgba(255, 251, 242, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 12px;
+  margin-top: 32px;
+  max-width: 920px;
+  padding: 10px;
+}
+
+.commandBar input {
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font-family: "Courier New", monospace;
+  min-width: 0;
+  outline: 0;
+  padding: 18px 22px;
+}
+
+.commandBar button {
+  background: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  color: #fff7e8;
+  cursor: pointer;
+  font-family: "Courier New", monospace;
+  font-weight: 700;
+  padding: 18px 26px;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.commandBar button:hover:not(:disabled) {
+  background: var(--clay);
+  transform: translateY(-2px);
+}
+
+.commandBar button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.errorCard {
+  background: rgba(185, 71, 46, 0.13);
+  border: 1px solid rgba(185, 71, 46, 0.28);
+  border-radius: 22px;
+  color: var(--clay);
+  margin-top: 18px;
+  max-width: 920px;
+  padding: 18px 22px;
+}
+
+.statusGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  margin: 42px auto;
+  max-width: 1120px;
+  position: relative;
+  z-index: 1;
+}
+
+.statusCard,
+.panel {
+  backdrop-filter: blur(18px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.statusCard {
+  border-radius: 26px;
+  padding: 18px;
+}
+
+.statusCard span {
+  color: var(--muted);
+  display: block;
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.statusCard strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard {
+  animation: rise 650ms ease both;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 auto;
+  max-width: 1120px;
+  position: relative;
+  z-index: 1;
+}
+
+.panel {
+  border-radius: 34px;
+  padding: 28px;
+}
+
+.widePanel {
+  grid-column: 1 / -1;
+}
+
+.channelPanel {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.avatar {
+  border: 6px solid rgba(255, 247, 232, 0.9);
+  border-radius: 30px;
+  height: 112px;
+  object-fit: cover;
+  width: 112px;
+}
+
+.panel h2 {
+  font-size: clamp(1.7rem, 3vw, 2.7rem);
+  letter-spacing: -0.05em;
+  line-height: 1;
+  margin: 0 0 12px;
+}
+
+.panel h3 {
+  font-size: 1.25rem;
+  line-height: 1.1;
+  margin: 0 0 12px;
+}
+
+.muted,
+.panel p,
+.compactItem span,
+.ideaCard small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.metricRow,
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.metricRow span,
+.chip {
+  background: rgba(47, 111, 95, 0.12);
+  border-radius: 999px;
+  color: var(--moss);
+  font-family: "Courier New", monospace;
+  font-size: 0.88rem;
+  padding: 10px 12px;
+}
+
+.bulletList {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+}
+
+.bulletList li {
+  background: rgba(244, 185, 66, 0.14);
+  border-radius: 18px;
+  list-style: none;
+  padding: 14px;
+}
+
+.ideaGrid,
+.calendarGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ideaCard,
+.calendarItem,
+.compactItem {
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.compactItem {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.calendarItem span {
+  color: var(--clay);
+  font-family: "Courier New", monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.emptyState {
+  align-items: center;
+  color: var(--muted);
+  display: grid;
+  justify-items: center;
+  margin: 86px auto 0;
+  max-width: 520px;
+  position: relative;
+  text-align: center;
+  z-index: 1;
+}
+
+.emptyState h2 {
+  color: var(--ink);
+  font-size: 2.2rem;
+  letter-spacing: -0.05em;
+  margin: 20px 0 0;
+}
+
+.orbit {
+  animation: spin 8s linear infinite;
+  border: 2px dashed rgba(31, 26, 20, 0.32);
+  border-radius: 50%;
+  height: 110px;
+  position: relative;
+  width: 110px;
+}
+
+.orbit::after {
+  background: var(--ember);
+  border-radius: 50%;
+  content: "";
+  height: 18px;
+  position: absolute;
+  right: 5px;
+  top: 8px;
+  width: 18px;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 820px) {
+  .shell {
+    padding: 28px 18px;
+  }
+
+  .commandBar,
+  .channelPanel {
+    align-items: stretch;
+    border-radius: 28px;
+    flex-direction: column;
+  }
+
+  .commandBar button {
+    width: 100%;
+  }
+
+  .statusGrid,
+  .dashboard,
+  .ideaGrid,
+  .calendarGrid {
+    grid-template-columns: 1fr;
+  }
+}
