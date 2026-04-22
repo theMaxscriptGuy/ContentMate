@@ -21,6 +21,7 @@ ContentMate is an AI-powered YouTube content assistant. It can ingest a YouTube 
 1. Copy `.env.example` to `.env` and fill in local secrets such as `OPENAI_API_KEY`.
    For Google sign-in, create a Google OAuth web client. Set `GOOGLE_CLIENT_ID`
    in the API env and `NEXT_PUBLIC_GOOGLE_CLIENT_ID` in the web env.
+   Each user is limited to `DAILY_ANALYSIS_LIMIT=2` fresh analyses per UTC day.
 2. Start infrastructure:
 
 ```bash

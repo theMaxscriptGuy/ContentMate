@@ -15,3 +15,4 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     channels = relationship("Channel", back_populates="user")
     generated_content = relationship("GeneratedContent", back_populates="user")
+    usage_events = relationship("UsageEvent", back_populates="user")

@@ -110,6 +110,14 @@ type AuthUser = {
 type AuthResponse = {
   access_token: string;
   user: AuthUser;
+  usage: UsageStatus;
+};
+
+type UsageStatus = {
+  daily_analysis_limit: number;
+  analyses_used_today: number;
+  analyses_remaining_today: number;
+  resets_at: string;
 };
 
 type HistoryItem = {
@@ -164,6 +172,7 @@ export default function Home() {
   const [isLoginRequired, setIsLoginRequired] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [usage, setUsage] = useState<UsageStatus | null>(null);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const pendingAnalyzeRef = useRef(false);
   const loginWithGoogleRef = useRef<(credential: string) => Promise<void>>();
@@ -193,9 +202,11 @@ export default function Home() {
   useEffect(() => {
     if (!authToken || !user) {
       setHistory([]);
+      setUsage(null);
       return;
     }
 
+    void loadUsage(authToken);
     void loadHistory(authToken);
   }, [authToken, user]);
 
@@ -219,6 +230,7 @@ export default function Home() {
       window.localStorage.setItem("contentmate_user", JSON.stringify(authPayload.user));
       setAuthToken(authPayload.access_token);
       setUser(authPayload.user);
+      setUsage(authPayload.usage);
       setIsLoginRequired(false);
       await loadHistory(authPayload.access_token);
       if (pendingAnalyzeRef.current) {
@@ -290,6 +302,22 @@ export default function Home() {
     setUser(null);
     setResult(null);
     setHistory([]);
+    setUsage(null);
+  }
+
+  async function loadUsage(token: string) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail ?? "Could not load usage");
+      }
+      setUsage(payload.usage);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Could not load usage");
+    }
   }
 
   async function loadHistory(token: string) {
@@ -396,6 +424,7 @@ export default function Home() {
         throw new Error(payload.detail ?? "Pipeline failed");
       }
       setResult(payload);
+      await loadUsage(token);
       await loadHistory(token);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Something went wrong");
@@ -468,7 +497,14 @@ export default function Home() {
         <StatusCard label="Ingest" state={result ? "Complete" : "Waiting"} />
         <StatusCard label="Transcript" state={transcript?.status ?? "Waiting"} />
         <StatusCard label="Analysis" state={result?.analysis.model_name ?? "Waiting"} />
-        <StatusCard label="Ideas" state={result?.ideas.model_name ?? "Waiting"} />
+        <StatusCard
+          label="Daily Limit"
+          state={
+            usage
+              ? `${usage.analyses_remaining_today}/${usage.daily_analysis_limit} left`
+              : "Login required"
+          }
+        />
       </section>
 
       {user ? (

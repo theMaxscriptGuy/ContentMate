@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     auth_token_secret: str = Field(default="change-me-in-production")
     auth_token_ttl_seconds: int = 604800
     google_client_id: str = Field(default="")
+    daily_analysis_limit: int = 2
 
     openai_api_key: str = Field(default="")
     openai_analysis_model: str = "gpt-4.1-mini"
