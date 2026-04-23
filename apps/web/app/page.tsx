@@ -33,6 +33,9 @@ type AnalysisResult = {
   content_patterns: string[];
   strengths: string[];
   gaps: string[];
+  transcript_coverage_ratio: number;
+  analyzed_video_count: number;
+  analyzed_transcript_count: number;
 };
 
 type VideoIdea = {
@@ -208,6 +211,9 @@ export default function Home() {
 
   const selectedVideo = result?.channel_sync.videos[0];
   const transcript = result?.transcript_sync.transcripts[0];
+  const transcriptCoverage = result?.analysis.result.transcript_coverage_ratio ?? 0;
+  const analyzedVideoCount = result?.analysis.result.analyzed_video_count ?? 0;
+  const usedMetadataFallback = transcriptCoverage === 0 && analyzedVideoCount > 0;
   const topicChips = useMemo(() => {
     const topics = result?.analysis.result.primary_topics ?? [];
     return topics.slice(0, 6);
@@ -644,6 +650,21 @@ export default function Home() {
 
       {result ? (
         <div className="dashboard">
+          <section className={`panel widePanel analysisSourcePanel ${usedMetadataFallback ? "fallback" : "transcript"}`}>
+            <p className="sectionLabel">Analysis Source</p>
+            <h2>{usedMetadataFallback ? "Metadata-only fallback" : "Transcript-backed analysis"}</h2>
+            <p className="muted">
+              {usedMetadataFallback
+                ? "Transcript fetch was unavailable for this run, so the analysis used channel and video metadata only. Insights may be less specific than a transcript-backed run."
+                : "This run used fetched transcript content alongside channel metadata for deeper topic and audience analysis."}
+            </p>
+            <div className="metricRow">
+              <span>{result.analysis.result.analyzed_transcript_count} transcripts used</span>
+              <span>{result.transcript_sync.failed_transcripts} transcript fetches failed</span>
+              <span>{Math.round(transcriptCoverage * 100)}% transcript coverage</span>
+            </div>
+          </section>
+
           <section className="panel channelPanel">
             <div>
               <p className="sectionLabel">Channel</p>

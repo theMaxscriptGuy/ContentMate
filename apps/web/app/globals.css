@@ -507,6 +507,16 @@ input {
   justify-content: space-between;
 }
 
+.analysisSourcePanel.transcript {
+  background: rgba(47, 111, 95, 0.1);
+  border-color: rgba(47, 111, 95, 0.24);
+}
+
+.analysisSourcePanel.fallback {
+  background: rgba(244, 185, 66, 0.16);
+  border-color: rgba(217, 95, 37, 0.28);
+}
+
 .avatar {
   border: 6px solid rgba(255, 247, 232, 0.9);
   border-radius: 30px;
