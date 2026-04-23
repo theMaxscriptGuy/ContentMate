@@ -39,6 +39,7 @@ class YouTubeVideoPayload:
     like_count: int | None
     comment_count: int | None
     is_short: bool = False
+    is_stream: bool = False
 
 
 class YouTubeClient:
@@ -101,6 +102,8 @@ class YouTubeClient:
             include_streams=include_streams,
             include_shorts=include_shorts,
         )
+        if include_streams:
+            videos = self._hydrate_stream_payloads(videos)
         selected_videos = self._select_latest_uploaded_videos(
             videos=videos,
             max_results=max_results,
@@ -283,6 +286,7 @@ class YouTubeClient:
                     like_count=_safe_int(entry.get("like_count")),
                     comment_count=_safe_int(entry.get("comment_count")),
                     is_short=content_type == "shorts",
+                    is_stream=content_type == "streams",
                 )
             )
 
@@ -316,7 +320,21 @@ class YouTubeClient:
             view_count=_safe_int(info.get("view_count")) or video.view_count,
             like_count=_safe_int(info.get("like_count")) or video.like_count,
             comment_count=_safe_int(info.get("comment_count")) or video.comment_count,
+            is_short=video.is_short,
+            is_stream=video.is_stream,
         )
+
+    def _hydrate_stream_payloads(
+        self,
+        videos: list[YouTubeVideoPayload],
+    ) -> list[YouTubeVideoPayload]:
+        hydrated: list[YouTubeVideoPayload] = []
+        for video in videos:
+            if _looks_like_stream(video):
+                hydrated.append(self._hydrate_video_payload(video))
+            else:
+                hydrated.append(video)
+        return hydrated
 
 
 def _safe_int(value: Any) -> int | None:
@@ -419,3 +437,7 @@ def _classify_entry_content_type(entry: dict[str, Any]) -> str | None:
         return "shorts"
 
     return "videos"
+
+
+def _looks_like_stream(video: YouTubeVideoPayload) -> bool:
+    return video.is_stream

@@ -187,6 +187,59 @@ def test_fetch_channel_with_longest_videos_keeps_legacy_latest_upload_behavior()
     asyncio.run(run_test())
 
 
+def test_stream_payloads_are_hydrated_before_sorting() -> None:
+    client = YouTubeClient()
+    stale_stream = YouTubeVideoPayload(
+        youtube_video_id="older-stream",
+        title="Older stream",
+        description=None,
+        published_at=datetime(2020, 1, 1, tzinfo=timezone.utc),
+        thumbnail_url=None,
+        duration_seconds=7200,
+        view_count=None,
+        like_count=None,
+        comment_count=None,
+        is_short=False,
+        is_stream=True,
+    )
+    fresh_stream = YouTubeVideoPayload(
+        youtube_video_id="newer-stream",
+        title="Newer stream",
+        description=None,
+        published_at=datetime(2019, 1, 1, tzinfo=timezone.utc),
+        thumbnail_url=None,
+        duration_seconds=7200,
+        view_count=None,
+        like_count=None,
+        comment_count=None,
+        is_short=False,
+        is_stream=True,
+    )
+
+    def hydrate(video: YouTubeVideoPayload) -> YouTubeVideoPayload:
+        if video.youtube_video_id == "newer-stream":
+            return YouTubeVideoPayload(
+                youtube_video_id=video.youtube_video_id,
+                title=video.title,
+                description=video.description,
+                published_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                thumbnail_url=video.thumbnail_url,
+                duration_seconds=video.duration_seconds,
+                view_count=video.view_count,
+                like_count=video.like_count,
+                comment_count=video.comment_count,
+                is_short=False,
+                is_stream=True,
+            )
+        return video
+
+    with patch.object(client, "_hydrate_video_payload", side_effect=hydrate):
+        hydrated = client._hydrate_stream_payloads([stale_stream, fresh_stream])
+        selected = client._select_latest_uploaded_videos(hydrated, max_results=2)
+
+    assert [video.youtube_video_id for video in selected] == ["newer-stream", "older-stream"]
+
+
 def _video(
     video_id: str,
     published_at: datetime,
@@ -203,4 +256,5 @@ def _video(
         like_count=None,
         comment_count=None,
         is_short=False,
+        is_stream=False,
     )
