@@ -44,14 +44,6 @@ class TranscriptClient:
     def fetch_transcript(self, youtube_video_id: str) -> TranscriptPayload:
         errors: list[str] = []
 
-        if settings.transcript_use_ytdlp_fallback and yt_dlp is not None:
-            try:
-                return self._fetch_with_ytdlp(youtube_video_id)
-            except TranscriptProviderError as exc:
-                errors.append(str(exc))
-        elif settings.transcript_use_ytdlp_fallback and _YTDLP_IMPORT_ERROR is not None:
-            errors.append("yt-dlp is unavailable. Run `pip install -e .` in apps/api.")
-
         if YouTubeTranscriptApi is not None:
             try:
                 return self._fetch_with_youtube_transcript_api(youtube_video_id)
@@ -61,6 +53,14 @@ class TranscriptClient:
             errors.append(
                 "youtube-transcript-api is unavailable. Run `pip install -e .` in apps/api."
             )
+
+        if settings.transcript_use_ytdlp_fallback and yt_dlp is not None:
+            try:
+                return self._fetch_with_ytdlp(youtube_video_id)
+            except TranscriptProviderError as exc:
+                errors.append(str(exc))
+        elif settings.transcript_use_ytdlp_fallback and _YTDLP_IMPORT_ERROR is not None:
+            errors.append("yt-dlp is unavailable. Run `pip install -e .` in apps/api.")
 
         raise TranscriptProviderError(
             " | ".join(dict.fromkeys(errors)) or "No transcript found for this video."
