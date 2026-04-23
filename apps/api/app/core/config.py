@@ -1,10 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONFIG_FILE = Path(__file__).resolve()
+DEFAULT_POSTGRES_DSN = "postgresql+asyncpg://contentmate:contentmate@localhost:5432/contentmate"
 
 
 def _find_env_files() -> tuple[str, ...]:
@@ -25,9 +26,8 @@ class Settings(BaseSettings):
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
     )
 
-    postgres_dsn: str = Field(
-        default="postgresql+asyncpg://contentmate:contentmate@localhost:5432/contentmate"
-    )
+    postgres_dsn: str = Field(default=DEFAULT_POSTGRES_DSN)
+    database_url: str = Field(default="")
     redis_url: str = Field(default="redis://localhost:6379/0")
 
     youtube_min_duration_seconds: int = 301
@@ -52,6 +52,25 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def normalize_database_urls(self) -> "Settings":
+        if self.postgres_dsn == DEFAULT_POSTGRES_DSN and self.database_url:
+            self.postgres_dsn = self.database_url
+        self.postgres_dsn = _as_async_postgres_dsn(self.postgres_dsn)
+        return self
+
+
+def _as_async_postgres_dsn(dsn: str) -> str:
+    if dsn.startswith("postgres://"):
+        return dsn.replace("postgres://", "postgresql+asyncpg://", 1)
+    if dsn.startswith("postgresql://"):
+        return dsn.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return dsn
+
+
+def as_sync_postgres_dsn(dsn: str) -> str:
+    return dsn.replace("postgresql+asyncpg://", "postgresql://", 1)
 
 
 @lru_cache
