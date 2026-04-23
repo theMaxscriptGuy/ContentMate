@@ -214,6 +214,19 @@ export default function Home() {
   const transcriptCoverage = result?.analysis.result.transcript_coverage_ratio ?? 0;
   const analyzedVideoCount = result?.analysis.result.analyzed_video_count ?? 0;
   const usedMetadataFallback = transcriptCoverage === 0 && analyzedVideoCount > 0;
+  const fetchedVideoDetails = useMemo(() => {
+    if (!result) {
+      return [];
+    }
+
+    return result.channel_sync.videos.map((video, index) => {
+      const transcriptStatus = result.transcript_sync.transcripts[index];
+      return {
+        ...video,
+        transcriptDetail: transcriptStatus ?? null
+      };
+    });
+  }, [result]);
   const topicChips = useMemo(() => {
     const topics = result?.analysis.result.primary_topics ?? [];
     return topics.slice(0, 6);
@@ -664,6 +677,48 @@ export default function Home() {
               <span>{Math.round(transcriptCoverage * 100)}% transcript coverage</span>
             </div>
           </section>
+
+          <details className="panel widePanel fetchDetailsPanel">
+            <summary>
+              <div>
+                <p className="sectionLabel">Fetch Details</p>
+                <strong>{fetchedVideoDetails.length} candidate videos processed</strong>
+              </div>
+              <span>{result.transcript_sync.fetched_transcripts} transcript fetches succeeded</span>
+            </summary>
+            <div className="fetchDetailsMeta">
+              <span>{result.transcript_sync.failed_transcripts} transcript fetches failed</span>
+              <span>{result.analysis.result.analyzed_video_count} videos considered in analysis</span>
+            </div>
+            <div className="fetchDetailsList">
+              {fetchedVideoDetails.map((video) => (
+                <article className="fetchDetailItem" key={video.youtube_video_id}>
+                  <div className="fetchDetailHeader">
+                    <div>
+                      <strong>{video.title}</strong>
+                      <small>{video.youtube_video_id}</small>
+                    </div>
+                    <span className={`fetchStatus ${video.transcript_status}`}>
+                      {video.transcript_status === "completed"
+                        ? "Transcript available"
+                        : video.transcript_status === "failed"
+                          ? "Transcript failed"
+                          : video.transcript_status}
+                    </span>
+                  </div>
+                  <div className="metricRow">
+                    <span>{formatDuration(video.duration_seconds)}</span>
+                    <span>{formatNumber(video.view_count)} views</span>
+                    {video.transcriptDetail?.language ? <span>{video.transcriptDetail.language}</span> : null}
+                    {video.transcriptDetail?.source ? <span>{video.transcriptDetail.source}</span> : null}
+                  </div>
+                  {video.transcriptDetail?.error_message ? (
+                    <p className="fetchError">{video.transcriptDetail.error_message}</p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </details>
 
           <section className="panel channelPanel">
             <div>

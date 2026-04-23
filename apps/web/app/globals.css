@@ -517,6 +517,89 @@ input {
   border-color: rgba(217, 95, 37, 0.28);
 }
 
+.fetchDetailsPanel summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  list-style: none;
+}
+
+.fetchDetailsPanel summary::-webkit-details-marker {
+  display: none;
+}
+
+.fetchDetailsPanel summary strong {
+  display: block;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.fetchDetailsPanel summary > span,
+.fetchDetailsMeta span,
+.fetchDetailHeader small,
+.fetchError {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.82rem;
+}
+
+.fetchDetailsMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.fetchDetailsList {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.fetchDetailItem {
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 18px;
+}
+
+.fetchDetailHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.fetchDetailHeader > div {
+  display: grid;
+  gap: 4px;
+}
+
+.fetchStatus {
+  border-radius: 999px;
+  font-family: "Courier New", monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.fetchStatus.completed {
+  background: rgba(47, 111, 95, 0.12);
+  color: var(--moss);
+}
+
+.fetchStatus.failed {
+  background: rgba(217, 95, 37, 0.12);
+  color: var(--clay);
+}
+
+.fetchError {
+  margin: 12px 0 0;
+}
+
 .avatar {
   border: 6px solid rgba(255, 247, 232, 0.9);
   border-radius: 30px;
@@ -844,6 +927,12 @@ input {
     align-items: stretch;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .fetchDetailsPanel summary,
+  .fetchDetailHeader {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .contactPanel {
