@@ -4,6 +4,7 @@ from unittest.mock import patch
 from app.integrations.youtube.client import (
     YouTubeClient,
     YouTubeVideoPayload,
+    _is_regular_video_entry,
     _parse_iso8601_duration,
 )
 
@@ -99,6 +100,50 @@ def test_fetch_channel_returns_latest_eligible_uploads_without_hydrating() -> No
     import asyncio
 
     asyncio.run(run_test())
+
+
+def test_build_video_payloads_excludes_shorts_and_streams() -> None:
+    client = YouTubeClient()
+    channel_info = {
+        "entries": [
+            {
+                "id": "regular-video",
+                "title": "Regular Video",
+                "duration": 900,
+                "timestamp": 1704067200,
+                "webpage_url": "https://www.youtube.com/watch?v=regular-video",
+            },
+            {
+                "id": "short-video",
+                "title": "Short",
+                "duration": 900,
+                "timestamp": 1704067200,
+                "webpage_url": "https://www.youtube.com/shorts/short-video",
+            },
+            {
+                "id": "stream-video",
+                "title": "Stream",
+                "duration": 7200,
+                "timestamp": 1704067200,
+                "live_status": "was_live",
+                "webpage_url": "https://www.youtube.com/watch?v=stream-video",
+            },
+        ]
+    }
+
+    videos = client._build_video_payloads(channel_info)
+
+    assert [video.youtube_video_id for video in videos] == ["regular-video"]
+
+
+def test_is_regular_video_entry_rejects_shorts_and_live_statuses() -> None:
+    assert _is_regular_video_entry({"webpage_url": "https://www.youtube.com/watch?v=abc"})
+    assert not _is_regular_video_entry(
+        {"webpage_url": "https://www.youtube.com/shorts/abc"}
+    )
+    assert not _is_regular_video_entry(
+        {"webpage_url": "https://www.youtube.com/watch?v=abc", "live_status": "is_live"}
+    )
 
 
 def test_fetch_channel_with_longest_videos_keeps_legacy_latest_upload_behavior() -> None:

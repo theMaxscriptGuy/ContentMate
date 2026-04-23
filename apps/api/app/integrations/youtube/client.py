@@ -196,6 +196,8 @@ class YouTubeClient:
         for entry in info.get("entries") or []:
             if not entry:
                 continue
+            if not _is_regular_video_entry(entry):
+                continue
             video_id = entry.get("id")
             if not video_id:
                 continue
@@ -321,3 +323,27 @@ def _dedupe_entries(entries) -> list[dict[str, Any]]:
         seen.add(video_id)
         deduped.append(entry)
     return deduped
+
+
+def _is_regular_video_entry(entry: dict[str, Any]) -> bool:
+    live_status = str(entry.get("live_status") or "").lower()
+    if live_status in {"is_live", "post_live", "was_live", "is_upcoming"}:
+        return False
+
+    url_candidates = [
+        str(entry.get("url") or "").lower(),
+        str(entry.get("webpage_url") or "").lower(),
+        str(entry.get("original_url") or "").lower(),
+    ]
+    if any("/shorts/" in value for value in url_candidates):
+        return False
+
+    channel_tab = str(entry.get("channel_url") or "").lower()
+    if "/shorts" in channel_tab or "/streams" in channel_tab:
+        return False
+
+    overlay_style = str(entry.get("overlay_style") or "").lower()
+    if overlay_style == "shorts":
+        return False
+
+    return True
