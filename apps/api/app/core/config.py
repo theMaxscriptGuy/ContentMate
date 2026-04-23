@@ -4,8 +4,16 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
-LOCAL_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+CONFIG_FILE = Path(__file__).resolve()
+
+
+def _find_env_files() -> tuple[str, ...]:
+    env_files = []
+    for parent in CONFIG_FILE.parents:
+        candidate = parent / ".env"
+        if candidate.exists():
+            env_files.append(str(candidate))
+    return tuple(env_files)
 
 
 class Settings(BaseSettings):
@@ -39,7 +47,7 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 20.0
 
     model_config = SettingsConfigDict(
-        env_file=(str(LOCAL_ENV_FILE), str(ROOT_ENV_FILE)),
+        env_file=_find_env_files(),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
