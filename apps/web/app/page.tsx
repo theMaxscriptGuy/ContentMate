@@ -485,14 +485,20 @@ export default function Home() {
     <main className="shell">
       <header className="topBar">
         <div className="brandBlock">
-          <strong>ContentMate</strong>
-          <small>Capstone project by Videep Mishraa</small>
-          <span>Creator strategy workspace</span>
+          <div className="brandIdentity">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img alt="ContentMatePro logo" src="/contentmatepro-logo.png" />
+            <div>
+              <strong>ContentMatePro</strong>
+              <small>Capstone project by Videep Mishraa</small>
+              <span>Creator strategy workspace</span>
+            </div>
+          </div>
         </div>
         <div className="topActions">
           <div className="contactLinks compact">
             <a href="tel:+919175477740">+91-9175477740</a>
-            <a href="mailto:videepvlogs@gmail.com">videepvlogs@gmail.com</a>
+            <a href="mailto:create@contentmatepro.com">create@contentmatepro.com</a>
           </div>
           <div className="authDock">
             {user ? (
@@ -520,10 +526,10 @@ export default function Home() {
       </header>
 
       <section className="hero">
-        <div className="eyebrow">ContentMate Studio</div>
+        <div className="eyebrow">ContentMatePro Studio</div>
         <h1>Turn a YouTube channel into a content strategy board.</h1>
         <p>
-          Paste a channel URL. ContentMate pulls a long-form video, gets the transcript,
+          Paste a channel URL. ContentMatePro pulls a long-form video, gets the transcript,
           analyzes the creator style, and generates production-ready ideas.
         </p>
 
@@ -754,7 +760,7 @@ export default function Home() {
         </div>
         <div className="contactLinks">
           <a href="tel:+919175477740">+91-9175477740</a>
-          <a href="mailto:videepvlogs@gmail.com">videepvlogs@gmail.com</a>
+          <a href="mailto:create@contentmatepro.com">create@contentmatepro.com</a>
         </div>
       </footer>
     </main>

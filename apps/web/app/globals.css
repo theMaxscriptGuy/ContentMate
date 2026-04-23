@@ -64,6 +64,26 @@ input {
   gap: 4px;
 }
 
+.brandIdentity {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.brandIdentity img {
+  border: 1px solid rgba(88, 68, 46, 0.18);
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(31, 26, 20, 0.12);
+  height: 58px;
+  object-fit: cover;
+  width: 58px;
+}
+
+.brandIdentity div {
+  display: grid;
+  gap: 4px;
+}
+
 .topBar strong {
   font-size: 1.2rem;
 }
@@ -709,6 +729,10 @@ input {
   .topBar,
   .topActions {
     gap: 18px;
+  }
+
+  .brandIdentity {
+    align-items: flex-start;
   }
 
   .topActions {

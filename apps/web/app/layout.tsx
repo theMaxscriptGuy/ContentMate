@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ContentMate",
+  title: "ContentMatePro",
   description: "AI-powered YouTube channel analysis and content ideation"
 };
 
