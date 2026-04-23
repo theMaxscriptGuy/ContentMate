@@ -761,6 +761,8 @@ export default function Home() {
         <div className="contactLinks">
           <a href="tel:+919175477740">+91-9175477740</a>
           <a href="mailto:create@contentmatepro.com">create@contentmatepro.com</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
         </div>
       </footer>
     </main>

@@ -167,7 +167,15 @@ In Google Cloud Console:
 
 1. APIs & Services -> Credentials.
 2. Open the OAuth 2.0 Web Client.
-3. Add Authorized JavaScript origins.
+3. Add the public policy URLs to the OAuth consent/app information where Google
+   asks for them:
+
+```text
+Privacy Policy URL: https://www.contentmatepro.com/privacy
+Terms of Service URL: https://www.contentmatepro.com/terms
+```
+
+4. Add Authorized JavaScript origins.
 
 For production:
 

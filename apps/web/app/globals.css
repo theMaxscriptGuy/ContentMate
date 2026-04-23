@@ -674,6 +674,78 @@ input {
   font-weight: 700;
 }
 
+.legalShell {
+  overflow: visible;
+}
+
+.legalPage {
+  background: rgba(255, 251, 242, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 34px;
+  box-shadow: var(--shadow);
+  margin: 0 auto;
+  max-width: 940px;
+  padding: 42px;
+  position: relative;
+  z-index: 1;
+}
+
+.legalBack {
+  color: var(--ink);
+  display: inline-block;
+  font-weight: 700;
+  margin-bottom: 28px;
+  text-decoration: none;
+}
+
+.legalPage h1 {
+  font-size: clamp(3rem, 7vw, 5.4rem);
+  letter-spacing: -0.07em;
+  line-height: 0.9;
+  margin: 0 0 12px;
+}
+
+.legalPage h2 {
+  font-size: 1.55rem;
+  letter-spacing: -0.04em;
+  margin: 34px 0 12px;
+}
+
+.legalPage p {
+  color: var(--muted);
+  line-height: 1.72;
+  margin: 0 0 14px;
+}
+
+.legalDate,
+.legalIntro {
+  font-family: "Courier New", monospace;
+}
+
+.legalIntro {
+  max-width: 760px;
+}
+
+.legalFooterLinks {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 36px;
+  padding-top: 20px;
+}
+
+.legalFooterLinks a {
+  background: rgba(255, 251, 242, 0.66);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: "Courier New", monospace;
+  font-size: 0.88rem;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
 .orbit {
   animation: spin 8s linear infinite;
   border: 2px dashed rgba(31, 26, 20, 0.32);
@@ -768,6 +840,11 @@ input {
     align-items: stretch;
     flex-direction: column;
     gap: 18px;
+  }
+
+  .legalPage {
+    border-radius: 26px;
+    padding: 28px 18px;
   }
 
   .contactLinks {
