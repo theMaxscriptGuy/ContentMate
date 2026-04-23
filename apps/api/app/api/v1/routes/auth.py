@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
+from app.core.rate_limit import enforce_auth_rate_limit
 from app.db.models.user import User
 from app.db.session import get_db_session
 from app.schemas.auth import AuthResponse, AuthUser, GoogleLoginRequest, UsageStatusResponse
@@ -14,8 +15,10 @@ router = APIRouter()
 @router.post("/google", response_model=AuthResponse)
 async def login_with_google(
     payload: GoogleLoginRequest,
+    request: Request,
     session: AsyncSession = Depends(get_db_session),
 ) -> AuthResponse:
+    await enforce_auth_rate_limit(request)
     service = AuthService(session=session)
     try:
         user, token = await service.login_with_google(payload.credential)

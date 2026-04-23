@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.rate_limit import RateLimiter, get_client_ip
 
 settings = get_settings()
 
@@ -33,5 +35,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def apply_global_rate_limit(request: Request, call_next):
+    if not request.url.path.startswith(settings.api_v1_prefix):
+        return await call_next(request)
+
+    if request.url.path in {
+        f"{settings.api_v1_prefix}/health",
+        f"{settings.api_v1_prefix}/ready",
+    }:
+        return await call_next(request)
+
+    try:
+        await RateLimiter().enforce(
+            namespace="global-api",
+            subject=get_client_ip(request),
+            limit=settings.rate_limit_global_requests_per_minute,
+            window_seconds=60,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 429:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers,
+            )
+        raise
+
+    return await call_next(request)
+
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)

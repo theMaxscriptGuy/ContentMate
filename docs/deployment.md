@@ -99,6 +99,9 @@ GOOGLE_CLIENT_ID=...
 AUTH_TOKEN_SECRET=...
 AUTH_TOKEN_TTL_SECONDS=604800
 DAILY_ANALYSIS_LIMIT=2
+RATE_LIMIT_GLOBAL_REQUESTS_PER_MINUTE=100
+RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE=10
+RATE_LIMIT_PIPELINE_REQUESTS_PER_HOUR=3
 YOUTUBE_MIN_DURATION_SECONDS=301
 YOUTUBE_SCAN_LIMIT=0
 YOUTUBE_CANDIDATE_POOL_SIZE=30
@@ -261,6 +264,32 @@ https://your-railway-domain/api/v1/health
 ```
 
 ## 9. Common Issues
+
+### Users or IPs get 429 Too Many Requests
+
+ContentMatePro uses Redis-backed rate limiting to reduce API abuse and accidental
+cost spikes.
+
+Default v1 limits:
+
+```text
+Global API: 100 requests/minute/IP
+Google login: 10 requests/minute/IP
+Analyze pipeline: 3 requests/hour/IP
+Daily user analysis limit: 2 analyses/day/user
+```
+
+Tune these in Railway:
+
+```text
+RATE_LIMIT_GLOBAL_REQUESTS_PER_MINUTE=100
+RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE=10
+RATE_LIMIT_PIPELINE_REQUESTS_PER_HOUR=3
+DAILY_ANALYSIS_LIMIT=2
+```
+
+Set a rate limit to `0` only if you intentionally want to disable that specific
+rate limiter.
 
 ### Railway tries localhost Postgres
 
