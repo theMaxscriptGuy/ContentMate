@@ -98,7 +98,7 @@ OPENAI_ANALYSIS_MAX_TRANSCRIPT_CHARS=60000
 GOOGLE_CLIENT_ID=...
 AUTH_TOKEN_SECRET=...
 AUTH_TOKEN_TTL_SECONDS=604800
-DAILY_ANALYSIS_LIMIT=2
+DAILY_ANALYSIS_LIMIT=5
 RATE_LIMIT_GLOBAL_REQUESTS_PER_MINUTE=100
 RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE=10
 RATE_LIMIT_PIPELINE_REQUESTS_PER_HOUR=3
@@ -285,7 +285,7 @@ Check:
 - [ ] Analysis and ideas are shown on the page.
 - [ ] My Channels/history shows saved user data.
 - [ ] Opening a saved channel restores results.
-- [ ] Daily usage limit shows and enforces 2 analyses/user/day.
+- [ ] Daily usage limit shows and enforces 5 analyses/user/day.
 - [ ] Invalid non-YouTube URLs are rejected before analysis starts.
 
 ### 8.4 Google OAuth
@@ -332,7 +332,7 @@ Default v1 limits:
 Global API: 100 requests/minute/IP
 Google login: 10 requests/minute/IP
 Analyze pipeline: 3 requests/hour/IP
-Daily user analysis limit: 2 analyses/day/user
+Daily user analysis limit: 5 analyses/day/user
 ```
 
 Tune these in Railway:
@@ -341,7 +341,7 @@ Tune these in Railway:
 RATE_LIMIT_GLOBAL_REQUESTS_PER_MINUTE=100
 RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE=10
 RATE_LIMIT_PIPELINE_REQUESTS_PER_HOUR=3
-DAILY_ANALYSIS_LIMIT=2
+DAILY_ANALYSIS_LIMIT=5
 MAX_REQUEST_BODY_BYTES=1048576
 ```
 
