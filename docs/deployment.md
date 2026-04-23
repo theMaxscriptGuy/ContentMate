@@ -161,9 +161,50 @@ Set these Vercel variables:
 ```text
 NEXT_PUBLIC_API_BASE_URL=https://your-railway-domain/api/v1
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
+INDEXNOW_ADMIN_TOKEN=...
 ```
 
 Redeploy Vercel after changing either variable.
+
+## 5A. IndexNow
+
+The frontend includes manual IndexNow support for the production domain.
+
+Public key file:
+
+```text
+https://www.contentmatepro.com/3F4D4A59-5467-4324-94AF-5A8B84976F21.txt
+```
+
+Protected submission route:
+
+```text
+POST https://www.contentmatepro.com/api/indexnow
+Authorization: Bearer <INDEXNOW_ADMIN_TOKEN>
+```
+
+Optional JSON body:
+
+```json
+{
+  "urls": [
+    "https://www.contentmatepro.com/",
+    "https://www.contentmatepro.com/privacy",
+    "https://www.contentmatepro.com/terms"
+  ]
+}
+```
+
+If no body is sent, the route submits the homepage, legal pages, and sitemap.
+
+The route submits to the global IndexNow endpoint:
+
+```text
+https://api.indexnow.org/indexnow
+```
+
+After deploying, you can verify the key file directly in a browser. Keep the
+`INDEXNOW_ADMIN_TOKEN` only in Vercel, never in client-side code.
 
 ## 6. Google OAuth
 
