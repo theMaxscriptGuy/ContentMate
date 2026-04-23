@@ -1,11 +1,18 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, field_validator
+
+from app.schemas.validators import validate_youtube_channel_url
 
 
 class ChannelAnalysisRequest(BaseModel):
     channel_url: HttpUrl
+
+    @field_validator("channel_url")
+    @classmethod
+    def validate_channel_url(cls, value: HttpUrl) -> HttpUrl:
+        return validate_youtube_channel_url(value)
 
 
 class ChannelSummary(BaseModel):

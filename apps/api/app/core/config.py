@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     rate_limit_global_requests_per_minute: int = 100
     rate_limit_auth_requests_per_minute: int = 10
     rate_limit_pipeline_requests_per_hour: int = 3
+    max_request_body_bytes: int = 1_048_576
 
     openai_api_key: str = Field(default="")
     openai_analysis_model: str = "gpt-4.1-mini"

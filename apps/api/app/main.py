@@ -38,6 +38,23 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def enforce_request_body_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            body_size = int(content_length)
+        except ValueError:
+            body_size = settings.max_request_body_bytes + 1
+        if body_size > settings.max_request_body_bytes:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request body is too large."},
+            )
+
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def apply_global_rate_limit(request: Request, call_next):
     if not request.url.path.startswith(settings.api_v1_prefix):
         return await call_next(request)
