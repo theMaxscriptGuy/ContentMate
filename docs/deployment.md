@@ -242,26 +242,81 @@ and sometimes longer.
 
 ## 8. Final Production Checks
 
-Open:
+Use this checklist before tagging or presenting v1.
+
+### 8.1 Public Site
 
 ```text
 https://www.contentmatepro.com
 ```
 
-Test:
+Check:
 
-1. Page loads from the custom domain.
-2. Google sign-in works.
-3. Analyze requires Google login.
-4. A channel analysis runs.
-5. Daily usage limit shows and enforces 2 analyses/user/day.
-6. My Channels/history shows saved user data.
-7. Opening a saved channel restores results.
+- [ ] Page loads from the custom domain.
+- [ ] `https://contentmatepro.com` redirects to `https://www.contentmatepro.com`.
+- [ ] Header shows ContentMatePro branding and logo.
+- [ ] Contact email is `create@contentmatepro.com`.
+- [ ] Privacy page loads: `https://www.contentmatepro.com/privacy`.
+- [ ] Terms page loads: `https://www.contentmatepro.com/terms`.
+- [ ] Vercel Analytics begins receiving page views after visiting the site.
 
-Also test backend health:
+### 8.2 Backend
 
 ```text
 https://your-railway-domain/api/v1/health
+```
+
+Check:
+
+- [ ] Health endpoint returns `status: ok`.
+- [ ] Railway API service is connected to Postgres and Redis.
+- [ ] Latest Railway deployment uses the current `main` commit.
+- [ ] Required Railway variables are present, including `DATABASE_URL`,
+  `REDIS_URL`, `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `AUTH_TOKEN_SECRET`,
+  `CORS_ALLOWED_ORIGINS`, rate-limit variables, and `MAX_REQUEST_BODY_BYTES`.
+
+### 8.3 Login And App Flow
+
+Check:
+
+- [ ] Google sign-in works on `https://www.contentmatepro.com`.
+- [ ] Analyze button requires Google login.
+- [ ] A YouTube channel URL runs through the full pipeline.
+- [ ] Analysis and ideas are shown on the page.
+- [ ] My Channels/history shows saved user data.
+- [ ] Opening a saved channel restores results.
+- [ ] Daily usage limit shows and enforces 2 analyses/user/day.
+- [ ] Invalid non-YouTube URLs are rejected before analysis starts.
+
+### 8.4 Google OAuth
+
+Check Google Cloud OAuth app settings:
+
+- [ ] Authorized JavaScript origins include `https://www.contentmatepro.com`.
+- [ ] Authorized JavaScript origins include `https://contentmatepro.com`.
+- [ ] Privacy Policy URL is `https://www.contentmatepro.com/privacy`.
+- [ ] Terms of Service URL is `https://www.contentmatepro.com/terms`.
+
+### 8.5 Security
+
+Check:
+
+- [ ] Exposed development keys have been rotated.
+- [ ] `.env`, `apps/api/.env`, and `apps/web/.env.local` are not committed.
+- [ ] OpenAI key exists only in Railway production variables.
+- [ ] Google client secret is not committed or exposed publicly.
+- [ ] `AUTH_TOKEN_SECRET` is a strong production-only secret.
+- [ ] Rate limiting is enabled in Railway.
+- [ ] Request body limit is enabled in Railway.
+
+### 8.6 v1 Tag
+
+After the checklist passes:
+
+```bash
+git status --short --branch
+git tag v1-prod
+git push origin v1-prod
 ```
 
 ## 9. Common Issues
