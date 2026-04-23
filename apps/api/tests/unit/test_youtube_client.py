@@ -4,7 +4,7 @@ from unittest.mock import patch
 from app.integrations.youtube.client import (
     YouTubeClient,
     YouTubeVideoPayload,
-    _is_regular_video_entry,
+    _classify_entry_content_type,
     _parse_iso8601_duration,
 )
 
@@ -51,7 +51,12 @@ def test_extract_channel_info_uses_uploads_videos_tab() -> None:
             "entries": [{"id": "video-1", "title": "Video 1", "duration": 600}],
         }
 
-        info = client._extract_channel_info("https://www.youtube.com/@example")
+        info = client._extract_channel_info(
+            "https://www.youtube.com/@example",
+            include_videos=True,
+            include_streams=False,
+            include_shorts=False,
+        )
 
     ydl.extract_info.assert_called_once_with(
         "https://www.youtube.com/@example/videos",
@@ -93,6 +98,9 @@ def test_fetch_channel_returns_latest_eligible_uploads_without_hydrating() -> No
                 _, videos = await client.fetch_channel_with_uploaded_videos(
                     "https://www.youtube.com/@example",
                     max_results=2,
+                    include_videos=True,
+                    include_streams=False,
+                    include_shorts=False,
                 )
         hydrate.assert_not_called()
         assert [video.youtube_video_id for video in videos] == ["newer", "older"]
@@ -131,19 +139,26 @@ def test_build_video_payloads_excludes_shorts_and_streams() -> None:
         ]
     }
 
-    videos = client._build_video_payloads(channel_info)
+    videos = client._build_video_payloads(
+        channel_info,
+        include_videos=True,
+        include_streams=False,
+        include_shorts=False,
+    )
 
     assert [video.youtube_video_id for video in videos] == ["regular-video"]
 
 
-def test_is_regular_video_entry_rejects_shorts_and_live_statuses() -> None:
-    assert _is_regular_video_entry({"webpage_url": "https://www.youtube.com/watch?v=abc"})
-    assert not _is_regular_video_entry(
+def test_classify_entry_content_type_detects_videos_shorts_and_streams() -> None:
+    assert _classify_entry_content_type(
+        {"webpage_url": "https://www.youtube.com/watch?v=abc"}
+    ) == "videos"
+    assert _classify_entry_content_type(
         {"webpage_url": "https://www.youtube.com/shorts/abc"}
-    )
-    assert not _is_regular_video_entry(
+    ) == "shorts"
+    assert _classify_entry_content_type(
         {"webpage_url": "https://www.youtube.com/watch?v=abc", "live_status": "is_live"}
-    )
+    ) == "streams"
 
 
 def test_fetch_channel_with_longest_videos_keeps_legacy_latest_upload_behavior() -> None:
@@ -160,7 +175,10 @@ def test_fetch_channel_with_longest_videos_keeps_legacy_latest_upload_behavior()
     async def run_test() -> None:
         with patch.object(client, "_extract_channel_info", return_value=channel_info):
             _, videos = await client.fetch_channel_with_longest_videos(
-                "https://www.youtube.com/@example"
+                "https://www.youtube.com/@example",
+                include_videos=True,
+                include_streams=False,
+                include_shorts=False,
             )
         assert [video.youtube_video_id for video in videos] == ["newer-long"]
 
@@ -184,4 +202,5 @@ def _video(
         view_count=None,
         like_count=None,
         comment_count=None,
+        is_short=False,
     )

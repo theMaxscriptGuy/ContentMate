@@ -194,6 +194,11 @@ const PIPELINE_STAGES: ProgressStage[] = [
 
 export default function Home() {
   const [channelUrl, setChannelUrl] = useState("https://www.youtube.com/@techwithvideep");
+  const [contentFilters, setContentFilters] = useState({
+    videos: true,
+    streams: false,
+    shorts: false
+  });
   const [result, setResult] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -214,19 +219,6 @@ export default function Home() {
   const transcriptCoverage = result?.analysis.result.transcript_coverage_ratio ?? 0;
   const analyzedVideoCount = result?.analysis.result.analyzed_video_count ?? 0;
   const usedMetadataFallback = transcriptCoverage === 0 && analyzedVideoCount > 0;
-  const fetchedVideoDetails = useMemo(() => {
-    if (!result) {
-      return [];
-    }
-
-    return result.channel_sync.videos.map((video, index) => {
-      const transcriptStatus = result.transcript_sync.transcripts[index];
-      return {
-        ...video,
-        transcriptDetail: transcriptStatus ?? null
-      };
-    });
-  }, [result]);
   const topicChips = useMemo(() => {
     const topics = result?.analysis.result.primary_topics ?? [];
     return topics.slice(0, 6);
@@ -454,6 +446,10 @@ export default function Home() {
 
   async function runPipeline(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!contentFilters.videos && !contentFilters.streams && !contentFilters.shorts) {
+      setError("Select at least one content type to analyze.");
+      return;
+    }
     if (!authToken) {
       pendingAnalyzeRef.current = true;
       setIsLoginRequired(true);
@@ -480,7 +476,10 @@ export default function Home() {
         body: JSON.stringify({
           channel_url: channelUrl,
           force_transcript_refresh: false,
-          force_ideas_refresh: true
+          force_ideas_refresh: true,
+          include_videos: contentFilters.videos,
+          include_streams: contentFilters.streams,
+          include_shorts: contentFilters.shorts
         })
       });
 
@@ -564,6 +563,38 @@ export default function Home() {
             {isLoading ? "Analyzing..." : "Analyze Channel"}
           </button>
         </form>
+        <div className="filterRow">
+          <label className="filterOption">
+            <input
+              checked={contentFilters.videos}
+              onChange={(event) =>
+                setContentFilters((current) => ({ ...current, videos: event.target.checked }))
+              }
+              type="checkbox"
+            />
+            <span>Videos</span>
+          </label>
+          <label className="filterOption">
+            <input
+              checked={contentFilters.streams}
+              onChange={(event) =>
+                setContentFilters((current) => ({ ...current, streams: event.target.checked }))
+              }
+              type="checkbox"
+            />
+            <span>Streams</span>
+          </label>
+          <label className="filterOption">
+            <input
+              checked={contentFilters.shorts}
+              onChange={(event) =>
+                setContentFilters((current) => ({ ...current, shorts: event.target.checked }))
+              }
+              type="checkbox"
+            />
+            <span>Shorts</span>
+          </label>
+        </div>
         {isLoginRequired && !user ? (
           <div className="loginPrompt">
             <strong>Google sign-in required</strong>
@@ -677,48 +708,6 @@ export default function Home() {
               <span>{Math.round(transcriptCoverage * 100)}% transcript coverage</span>
             </div>
           </section>
-
-          <details className="panel widePanel fetchDetailsPanel">
-            <summary>
-              <div>
-                <p className="sectionLabel">Fetch Details</p>
-                <strong>{fetchedVideoDetails.length} candidate videos processed</strong>
-              </div>
-              <span>{result.transcript_sync.fetched_transcripts} transcript fetches succeeded</span>
-            </summary>
-            <div className="fetchDetailsMeta">
-              <span>{result.transcript_sync.failed_transcripts} transcript fetches failed</span>
-              <span>{result.analysis.result.analyzed_video_count} videos considered in analysis</span>
-            </div>
-            <div className="fetchDetailsList">
-              {fetchedVideoDetails.map((video) => (
-                <article className="fetchDetailItem" key={video.youtube_video_id}>
-                  <div className="fetchDetailHeader">
-                    <div>
-                      <strong>{video.title}</strong>
-                      <small>{video.youtube_video_id}</small>
-                    </div>
-                    <span className={`fetchStatus ${video.transcript_status}`}>
-                      {video.transcript_status === "completed"
-                        ? "Transcript available"
-                        : video.transcript_status === "failed"
-                          ? "Transcript failed"
-                          : video.transcript_status}
-                    </span>
-                  </div>
-                  <div className="metricRow">
-                    <span>{formatDuration(video.duration_seconds)}</span>
-                    <span>{formatNumber(video.view_count)} views</span>
-                    {video.transcriptDetail?.language ? <span>{video.transcriptDetail.language}</span> : null}
-                    {video.transcriptDetail?.source ? <span>{video.transcriptDetail.source}</span> : null}
-                  </div>
-                  {video.transcriptDetail?.error_message ? (
-                    <p className="fetchError">{video.transcriptDetail.error_message}</p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </details>
 
           <section className="panel channelPanel">
             <div>

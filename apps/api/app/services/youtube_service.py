@@ -36,11 +36,17 @@ class YouTubeService:
         self,
         channel_url: str,
         user_id: str | None = None,
+        include_videos: bool = True,
+        include_streams: bool = False,
+        include_shorts: bool = False,
     ) -> ChannelSyncResult:
         try:
             channel_payload, videos_payload = await self.client.fetch_channel_with_uploaded_videos(
                 channel_url=channel_url,
                 max_results=self.client.candidate_pool_size,
+                include_videos=include_videos,
+                include_streams=include_streams,
+                include_shorts=include_shorts,
             )
         except YouTubeApiError as exc:
             raise ChannelNotFoundError(str(exc)) from exc

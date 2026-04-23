@@ -38,6 +38,7 @@ class YouTubeVideoPayload:
     view_count: int | None
     like_count: int | None
     comment_count: int | None
+    is_short: bool = False
 
 
 class YouTubeClient:
@@ -51,30 +52,55 @@ class YouTubeClient:
         self,
         channel_url: str,
         max_results: int = 1,
+        include_videos: bool = True,
+        include_streams: bool = False,
+        include_shorts: bool = False,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
         return await self.fetch_channel_with_uploaded_videos(
             channel_url=channel_url,
             max_results=max_results,
+            include_videos=include_videos,
+            include_streams=include_streams,
+            include_shorts=include_shorts,
         )
 
     async def fetch_channel_with_longest_videos(
         self,
         channel_url: str,
         max_results: int = 1,
+        include_videos: bool = True,
+        include_streams: bool = False,
+        include_shorts: bool = False,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
         return await self.fetch_channel_with_uploaded_videos(
             channel_url=channel_url,
             max_results=max_results,
+            include_videos=include_videos,
+            include_streams=include_streams,
+            include_shorts=include_shorts,
         )
 
     async def fetch_channel_with_uploaded_videos(
         self,
         channel_url: str,
         max_results: int = 1,
+        include_videos: bool = True,
+        include_streams: bool = False,
+        include_shorts: bool = False,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
-        info = self._extract_channel_info(channel_url=channel_url)
+        info = self._extract_channel_info(
+            channel_url=channel_url,
+            include_videos=include_videos,
+            include_streams=include_streams,
+            include_shorts=include_shorts,
+        )
         channel = self._build_channel_payload(info=info, channel_url=channel_url)
-        videos = self._build_video_payloads(info=info)
+        videos = self._build_video_payloads(
+            info=info,
+            include_videos=include_videos,
+            include_streams=include_streams,
+            include_shorts=include_shorts,
+        )
         selected_videos = self._select_latest_uploaded_videos(
             videos=videos,
             max_results=max_results,
@@ -90,7 +116,7 @@ class YouTubeClient:
             [
                 video
                 for video in videos
-                if (video.duration_seconds or 0) >= self.min_duration_seconds
+                if video.is_short or (video.duration_seconds or 0) >= self.min_duration_seconds
             ],
             key=lambda video: video.published_at,
             reverse=True,
@@ -113,7 +139,13 @@ class YouTubeClient:
 
         raise YouTubeApiError("Unsupported YouTube channel URL format.")
 
-    def _extract_channel_info(self, channel_url: str) -> dict[str, Any]:
+    def _extract_channel_info(
+        self,
+        channel_url: str,
+        include_videos: bool,
+        include_streams: bool,
+        include_shorts: bool,
+    ) -> dict[str, Any]:
         ydl_opts = {
             "extract_flat": "in_playlist",
             "ignoreerrors": True,
@@ -129,14 +161,19 @@ class YouTubeClient:
         infos = []
         errors: list[str] = []
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            uploads_url = self._normalize_channel_uploads_url(channel_url)
-            try:
-                info = ydl.extract_info(uploads_url, download=False)
-            except Exception as exc:
-                errors.append(str(exc))
-            else:
-                if info:
-                    infos.append(info)
+            for uploads_url in self._build_channel_tab_urls(
+                channel_url=channel_url,
+                include_videos=include_videos,
+                include_streams=include_streams,
+                include_shorts=include_shorts,
+            ):
+                try:
+                    info = ydl.extract_info(uploads_url, download=False)
+                except Exception as exc:
+                    errors.append(str(exc))
+                else:
+                    if info:
+                        infos.append(info)
 
         if not infos:
             detail = " | ".join(errors) if errors else "No upload tabs returned data."
@@ -149,7 +186,7 @@ class YouTubeClient:
         )
         return primary_info
 
-    def _normalize_channel_uploads_url(self, channel_url: str) -> str:
+    def _normalize_channel_base_url(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
         if parsed.netloc and "youtube.com" not in parsed.netloc:
             raise YouTubeApiError("Unsupported YouTube channel URL format.")
@@ -160,7 +197,26 @@ class YouTubeClient:
             if base_url.endswith(suffix):
                 base_url = base_url[: -len(suffix)]
                 break
-        return f"{base_url}/videos"
+        return base_url
+
+    def _build_channel_tab_urls(
+        self,
+        channel_url: str,
+        include_videos: bool,
+        include_streams: bool,
+        include_shorts: bool,
+    ) -> list[str]:
+        base_url = self._normalize_channel_base_url(channel_url)
+        tab_urls: list[str] = []
+        if include_videos:
+            tab_urls.append(f"{base_url}/videos")
+        if include_streams:
+            tab_urls.append(f"{base_url}/streams")
+        if include_shorts:
+            tab_urls.append(f"{base_url}/shorts")
+        if not tab_urls:
+            raise YouTubeApiError("Select at least one content type to analyze.")
+        return tab_urls
 
     def _build_channel_payload(
         self,
@@ -191,12 +247,25 @@ class YouTubeClient:
             thumbnail_url=thumbnail,
         )
 
-    def _build_video_payloads(self, info: dict[str, Any]) -> list[YouTubeVideoPayload]:
+    def _build_video_payloads(
+        self,
+        info: dict[str, Any],
+        include_videos: bool,
+        include_streams: bool,
+        include_shorts: bool,
+    ) -> list[YouTubeVideoPayload]:
         videos: list[YouTubeVideoPayload] = []
         for entry in info.get("entries") or []:
             if not entry:
                 continue
-            if not _is_regular_video_entry(entry):
+            content_type = _classify_entry_content_type(entry)
+            if content_type is None:
+                continue
+            if content_type == "videos" and not include_videos:
+                continue
+            if content_type == "streams" and not include_streams:
+                continue
+            if content_type == "shorts" and not include_shorts:
                 continue
             video_id = entry.get("id")
             if not video_id:
@@ -213,6 +282,7 @@ class YouTubeClient:
                     view_count=_safe_int(entry.get("view_count")),
                     like_count=_safe_int(entry.get("like_count")),
                     comment_count=_safe_int(entry.get("comment_count")),
+                    is_short=content_type == "shorts",
                 )
             )
 
@@ -325,10 +395,10 @@ def _dedupe_entries(entries) -> list[dict[str, Any]]:
     return deduped
 
 
-def _is_regular_video_entry(entry: dict[str, Any]) -> bool:
+def _classify_entry_content_type(entry: dict[str, Any]) -> str | None:
     live_status = str(entry.get("live_status") or "").lower()
     if live_status in {"is_live", "post_live", "was_live", "is_upcoming"}:
-        return False
+        return "streams"
 
     url_candidates = [
         str(entry.get("url") or "").lower(),
@@ -336,14 +406,16 @@ def _is_regular_video_entry(entry: dict[str, Any]) -> bool:
         str(entry.get("original_url") or "").lower(),
     ]
     if any("/shorts/" in value for value in url_candidates):
-        return False
+        return "shorts"
 
     channel_tab = str(entry.get("channel_url") or "").lower()
-    if "/shorts" in channel_tab or "/streams" in channel_tab:
-        return False
+    if "/shorts" in channel_tab:
+        return "shorts"
+    if "/streams" in channel_tab:
+        return "streams"
 
     overlay_style = str(entry.get("overlay_style") or "").lower()
     if overlay_style == "shorts":
-        return False
+        return "shorts"
 
-    return True
+    return "videos"

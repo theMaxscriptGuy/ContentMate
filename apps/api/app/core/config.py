@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     youtube_min_duration_seconds: int = 301
     youtube_scan_limit: int = 0
-    youtube_candidate_pool_size: int = 30
+    youtube_candidate_pool_size: int = 10
     transcript_use_ytdlp_fallback: bool = True
 
     auth_token_secret: str = Field(default="change-me-in-production")

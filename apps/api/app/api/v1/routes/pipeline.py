@@ -33,6 +33,9 @@ async def run_channel_pipeline(
             user_id=current_user.id,
             force_transcript_refresh=payload.force_transcript_refresh,
             force_ideas_refresh=payload.force_ideas_refresh,
+            include_videos=payload.include_videos,
+            include_streams=payload.include_streams,
+            include_shorts=payload.include_shorts,
         )
     except PipelineRunError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

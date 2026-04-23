@@ -26,6 +26,9 @@ class PipelineService:
         user_id: str,
         force_transcript_refresh: bool = False,
         force_ideas_refresh: bool = True,
+        include_videos: bool = True,
+        include_streams: bool = False,
+        include_shorts: bool = False,
     ) -> RunPipelineResponse:
         job_id = await create_job(job_namespace="pipeline", resource_id=channel_url)
         await set_job_status(job_id=job_id, status="processing")
@@ -34,6 +37,9 @@ class PipelineService:
             sync_result = await self.youtube_service.sync_channel_from_url(
                 channel_url,
                 user_id=user_id,
+                include_videos=include_videos,
+                include_streams=include_streams,
+                include_shorts=include_shorts,
             )
             channel_job_id = await enqueue_channel_sync_job(channel_id=sync_result.channel.id)
             channel_sync = ChannelSyncResponse(
