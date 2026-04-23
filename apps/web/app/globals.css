@@ -669,6 +669,11 @@ input {
   color: var(--moss);
 }
 
+.contactLinks a[href^="mailto:"] {
+  color: #000;
+  font-weight: 700;
+}
+
 .orbit {
   animation: spin 8s linear infinite;
   border: 2px dashed rgba(31, 26, 20, 0.32);
