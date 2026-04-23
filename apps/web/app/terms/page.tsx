@@ -3,7 +3,14 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Terms of Use | ContentMatePro",
-  description: "Terms of Use for ContentMatePro"
+  description: "Terms of Use for ContentMatePro",
+  alternates: {
+    canonical: "/terms"
+  },
+  robots: {
+    index: false,
+    follow: true
+  }
 };
 
 const sections = [

@@ -3,7 +3,14 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | ContentMatePro",
-  description: "Privacy Policy for ContentMatePro"
+  description: "Privacy Policy for ContentMatePro",
+  alternates: {
+    canonical: "/privacy"
+  },
+  robots: {
+    index: false,
+    follow: true
+  }
 };
 
 const sections = [
