@@ -23,3 +23,4 @@ Phase 1 and Phase 2 establish the backend orchestrator, relational schema, a Red
 - richer LLM-based analysis and trend services
 - OpenAI-powered content generation
 - Next.js frontend
+- agentic roadmap: see `docs/agentic-roadmap.md`
