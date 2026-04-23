@@ -75,13 +75,7 @@ class AnalysisService:
             if transcript and transcript.cleaned_text:
                 transcripts.append((video, transcript))
 
-        if not transcripts:
-            await set_job_status(job_id=job_id, status="failed")
-            raise ChannelAnalysisNotFoundError(
-                "No transcripts available to analyze for this channel"
-            )
-
-        joined_text = "\n\n".join(transcript.cleaned_text or "" for _, transcript in transcripts)
+        joined_text = self._build_analysis_text(videos=videos, transcripts=transcripts)
         transcript_coverage_ratio = round(len(transcripts) / max(len(videos), 1), 2)
         video_metadata = [
             {
@@ -92,7 +86,7 @@ class AnalysisService:
                 "like_count": video.like_count,
                 "comment_count": video.comment_count,
             }
-            for video, _ in transcripts
+            for video in videos
         ]
 
         try:
@@ -109,7 +103,7 @@ class AnalysisService:
         except OpenAIAnalysisError:
             payload = self._build_heuristic_analysis(
                 joined_text=joined_text,
-                titles=[video.title for video, _ in transcripts],
+                titles=[video.title for video in videos],
                 transcript_coverage_ratio=transcript_coverage_ratio,
                 analyzed_video_count=len(videos),
                 analyzed_transcript_count=len(transcripts),
@@ -141,6 +135,19 @@ class AnalysisService:
             fetched_transcripts=transcript_stats.fetched,
             failed_transcripts=transcript_stats.failed,
         )
+
+    @staticmethod
+    def _build_analysis_text(videos, transcripts: list[tuple[object, object]]) -> str:
+        if transcripts:
+            return "\n\n".join(transcript.cleaned_text or "" for _, transcript in transcripts)
+
+        metadata_lines = []
+        for video in videos:
+            parts = [video.title or ""]
+            if video.description:
+                parts.append(video.description)
+            metadata_lines.append(" ".join(part.strip() for part in parts if part.strip()))
+        return "\n\n".join(line for line in metadata_lines if line)
 
     def _build_heuristic_analysis(
         self,

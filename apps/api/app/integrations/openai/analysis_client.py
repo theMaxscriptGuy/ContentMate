@@ -62,7 +62,8 @@ class OpenAIAnalysisClient:
                         "role": "system",
                         "content": (
                             "You are a senior YouTube content strategist. "
-                            "Analyze transcripts and return grounded, practical insights."
+                            "Analyze supplied YouTube channel evidence and return grounded, "
+                            "practical insights."
                         ),
                     },
                     {"role": "user", "content": prompt},
@@ -91,10 +92,12 @@ class OpenAIAnalysisClient:
         analyzed_transcript_count: int,
     ) -> str:
         return f"""
-Analyze this YouTube channel using the provided video metadata and transcript.
+Analyze this YouTube channel using the provided video metadata and transcript text when available.
 
 Rules:
-- Base claims only on the supplied transcript and metadata.
+- Base claims only on the supplied transcript text and metadata.
+- If transcript coverage is 0, clearly infer from titles/descriptions only and reflect that
+  limitation in strengths or gaps.
 - Prefer semantic themes over raw repeated words.
 - Topics should be concise phrases, not filler words.
 - Mention counts may be approximate but should reflect transcript prominence.
