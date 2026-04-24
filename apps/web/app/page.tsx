@@ -254,7 +254,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!authToken || !user) {
+    if (!authToken) {
       setHistory([]);
       setUsage(null);
       return;
@@ -262,7 +262,7 @@ export default function Home() {
 
     void loadUsage(authToken);
     void loadHistory(authToken);
-  }, [authToken, user]);
+  }, [authToken]);
 
   useEffect(() => {
     if (!isLoading) {
