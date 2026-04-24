@@ -16,6 +16,7 @@ from app.schemas.agent_workflow import (
 from app.schemas.analysis import ChannelAnalysisResponse
 from app.schemas.channel import ChannelSyncResponse
 from app.schemas.ideas import GenerateIdeasResponse
+from app.schemas.openai_usage import OpenAIUsage, OpenAIUsageBreakdown
 from app.schemas.pipeline import RunPipelineResponse
 from app.schemas.transcript import ChannelTranscriptSyncResponse
 from app.services.agent_strategy_service import AgentStrategyService
@@ -49,10 +50,12 @@ class AgentWorkflowState(TypedDict, total=False):
     transcript_sync: ChannelTranscriptSyncResponse
     evidence_package: AgentEvidencePackage
     analysis: ChannelAnalysisResponse
+    strategy_usage: OpenAIUsage
     ideas_context: IdeasGenerationContext
     longform_ideas: object
     shortform_ideas: object
     planner_ideas: object
+    ideas_usage: OpenAIUsageBreakdown
     ideas_response: GenerateIdeasResponse
 
 
@@ -140,13 +143,20 @@ class AgentWorkflowService:
 
         logger.debug(
             "agent.workflow.completed channel_id=%s title=%s transcript_fetched=%s "
-            "transcript_failed=%s ideas_model=%s strategy_model=%s",
+            "transcript_failed=%s ideas_model=%s strategy_model=%s "
+            "strategy_tokens=%s ideas_tokens=%s total_tokens=%s",
             channel_sync.channel.id,
             channel_sync.channel.title,
             transcript_sync.fetched_transcripts,
             transcript_sync.failed_transcripts,
             ideas_response.ideas.model_name,
             analysis.model_name,
+            state.get("strategy_usage", OpenAIUsage()).total_tokens,
+            state.get("ideas_usage", OpenAIUsageBreakdown()).total.total_tokens,
+            (
+                state.get("strategy_usage", OpenAIUsage()).total_tokens
+                + state.get("ideas_usage", OpenAIUsageBreakdown()).total.total_tokens
+            ),
         )
         return RunPipelineResponse(
             job_id=transcript_sync.job_id,
@@ -291,19 +301,21 @@ class AgentWorkflowService:
 
     async def _strategy_agent_node(self, state: AgentWorkflowState) -> AgentWorkflowState:
         logger.debug("agent.workflow.node.strategy_agent.start channel_id=%s", state["channel_id"])
-        analysis = await self.strategy_service.generate_strategy(
+        result = await self.strategy_service.generate_strategy(
             channel_id=UUID(state["channel_id"]),
             evidence=state["evidence_package"],
         )
+        analysis = result.analysis
         logger.debug(
             "agent.workflow.node.strategy_agent.completed channel_id=%s "
-            "model=%s niche=%s audience=%s",
+            "model=%s niche=%s audience=%s total_tokens=%s",
             state["channel_id"],
             analysis.model_name,
             analysis.result.niche,
             analysis.result.target_audience,
+            result.usage.total_tokens,
         )
-        return {"analysis": analysis}
+        return {"analysis": analysis, "strategy_usage": result.usage}
 
     async def _load_cached_ideas_node(self, state: AgentWorkflowState) -> AgentWorkflowState:
         logger.debug(
@@ -380,22 +392,24 @@ class AgentWorkflowService:
 
     async def _assemble_ideas_node(self, state: AgentWorkflowState) -> AgentWorkflowState:
         logger.debug("agent.workflow.node.assemble_ideas.start channel_id=%s", state["channel_id"])
-        ideas_response = await self.ideas_service.persist_generated_ideas(
+        artifacts = await self.ideas_service.persist_generated_ideas(
             context=state["ideas_context"],
             longform=state["longform_ideas"],
             shortform=state["shortform_ideas"],
             planner=state["planner_ideas"],
         )
+        ideas_response = artifacts.response
         logger.debug(
             "agent.workflow.node.assemble_ideas.completed channel_id=%s model=%s "
-            "video_ideas=%s shorts_ideas=%s calendar_items=%s",
+            "video_ideas=%s shorts_ideas=%s calendar_items=%s total_tokens=%s",
             state["channel_id"],
             ideas_response.ideas.model_name,
             len(ideas_response.ideas.result.video_ideas),
             len(ideas_response.ideas.result.shorts_ideas),
             len(ideas_response.ideas.result.content_calendar),
+            artifacts.usage.total.total_tokens,
         )
-        return {"ideas_response": ideas_response}
+        return {"ideas_response": ideas_response, "ideas_usage": artifacts.usage}
 
     @staticmethod
     def _build_joined_text(videos, transcript_rows, joined_transcripts: list[str]) -> str:

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from app.core.config import get_settings
 from app.schemas.analysis import ChannelAnalysisPayload
+from app.schemas.openai_usage import OpenAIUsage
 
 settings = get_settings()
 
@@ -14,6 +15,7 @@ class OpenAIAnalysisError(Exception):
 class OpenAIAnalysisResult:
     payload: ChannelAnalysisPayload
     model_name: str
+    usage: OpenAIUsage
 
 
 class OpenAIAnalysisClient:
@@ -80,7 +82,11 @@ class OpenAIAnalysisClient:
         payload.transcript_coverage_ratio = transcript_coverage_ratio
         payload.analyzed_video_count = analyzed_video_count
         payload.analyzed_transcript_count = analyzed_transcript_count
-        return OpenAIAnalysisResult(payload=payload, model_name=self.model)
+        return OpenAIAnalysisResult(
+            payload=payload,
+            model_name=self.model,
+            usage=OpenAIUsage.from_response_usage(response.usage),
+        )
 
     @staticmethod
     def _build_prompt(

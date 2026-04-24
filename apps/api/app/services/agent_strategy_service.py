@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,7 @@ from app.integrations.openai.analysis_client import OpenAIAnalysisClient, OpenAI
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.agent_workflow import AgentEvidencePackage
 from app.schemas.analysis import ChannelAnalysisPayload, ChannelAnalysisResponse, TopicInsight
+from app.schemas.openai_usage import OpenAIUsage
 from app.utils.text import (
     build_topic_insights,
     detect_niche,
@@ -23,6 +25,12 @@ class AgentStrategyError(Exception):
     pass
 
 
+@dataclass(slots=True)
+class AgentStrategyResult:
+    analysis: ChannelAnalysisResponse
+    usage: OpenAIUsage
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,7 +44,7 @@ class AgentStrategyService:
         self,
         channel_id: UUID,
         evidence: AgentEvidencePackage,
-    ) -> ChannelAnalysisResponse:
+    ) -> AgentStrategyResult:
         channel = await self.channel_repository.get_by_id(str(channel_id))
         if channel is None:
             raise AgentStrategyError("Channel not found")
@@ -74,14 +82,21 @@ class AgentStrategyService:
             )
             payload = result.payload
             model_name = f"openai:{result.model_name}"
+            usage = result.usage
             logger.debug(
-                "agent.strategy.completed channel_id=%s model=%s source=openai",
+                "agent.strategy.completed channel_id=%s model=%s source=openai "
+                "input_tokens=%s output_tokens=%s total_tokens=%s reasoning_tokens=%s",
                 channel_id,
                 model_name,
+                usage.input_tokens,
+                usage.output_tokens,
+                usage.total_tokens,
+                usage.reasoning_tokens,
             )
         except OpenAIAnalysisError:
             payload = self._build_heuristic_strategy(evidence)
             model_name = "heuristic-v1"
+            usage = OpenAIUsage()
             logger.debug(
                 "agent.strategy.completed channel_id=%s model=%s source=heuristic",
                 channel_id,
@@ -99,6 +114,7 @@ class AgentStrategyService:
                 "transcript_coverage_ratio": evidence.workflow_meta.transcript_coverage_ratio,
                 "analyzed_video_count": evidence.workflow_meta.analyzed_video_count,
                 "analyzed_transcript_count": evidence.workflow_meta.analyzed_transcript_count,
+                "openai_usage": usage.model_dump(),
             },
             result_json=payload.model_dump(),
             status="completed",
@@ -109,14 +125,17 @@ class AgentStrategyService:
         await self.session.commit()
         await self.session.refresh(analysis_row)
 
-        return ChannelAnalysisResponse(
-            id=UUID(analysis_row.id),
-            channel_id=UUID(analysis_row.channel_id),
-            content_type=analysis_row.content_type,
-            status=analysis_row.status,
-            model_name=analysis_row.model_name,
-            created_at=analysis_row.created_at,
-            result=payload,
+        return AgentStrategyResult(
+            analysis=ChannelAnalysisResponse(
+                id=UUID(analysis_row.id),
+                channel_id=UUID(analysis_row.channel_id),
+                content_type=analysis_row.content_type,
+                status=analysis_row.status,
+                model_name=analysis_row.model_name,
+                created_at=analysis_row.created_at,
+                result=payload,
+            ),
+            usage=usage,
         )
 
     def _build_heuristic_strategy(self, evidence: AgentEvidencePackage) -> ChannelAnalysisPayload:

@@ -13,6 +13,7 @@ from app.schemas.ideas import (
     PlannerIdeasPayload,
     ShortformIdeasPayload,
 )
+from app.schemas.openai_usage import OpenAIUsage
 
 settings = get_settings()
 
@@ -27,6 +28,7 @@ class OpenAIIdeasError(Exception):
 class OpenAIParsedResult(Generic[T]):
     payload: T
     model_name: str
+    usage: OpenAIUsage
 
 
 class OpenAIIdeasClient:
@@ -166,7 +168,11 @@ class OpenAIIdeasClient:
         if payload is None:
             raise OpenAIIdeasError("OpenAI returned no parsed ideas.")
 
-        return OpenAIParsedResult(payload=payload, model_name=self.model)
+        return OpenAIParsedResult(
+            payload=payload,
+            model_name=self.model,
+            usage=OpenAIUsage.from_response_usage(response.usage),
+        )
 
     @staticmethod
     def _build_channel_prompt(

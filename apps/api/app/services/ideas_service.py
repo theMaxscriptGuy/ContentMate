@@ -26,6 +26,7 @@ from app.schemas.ideas import (
     PlannerIdeasPayload,
     ShortformIdeasPayload,
 )
+from app.schemas.openai_usage import OpenAIUsage, OpenAIUsageBreakdown
 from app.workers.queue import create_job, set_job_status
 
 
@@ -41,6 +42,12 @@ class IdeasGenerationContext:
     trend_geo: str
     trend_items: list[str]
     trend_context: str | None
+
+
+@dataclass(slots=True)
+class IdeasGenerationArtifacts:
+    response: GenerateIdeasResponse
+    usage: OpenAIUsageBreakdown
 
 
 logger = logging.getLogger(__name__)
@@ -75,12 +82,13 @@ class IdeasService:
             longform=longform.payload,
             shortform=shortform.payload,
         )
-        return await self.persist_generated_ideas(
+        artifacts = await self.persist_generated_ideas(
             context=context,
             longform=longform,
             shortform=shortform,
             planner=planner,
         )
+        return artifacts.response
 
     async def get_cached_ideas_response(
         self,
@@ -276,7 +284,7 @@ class IdeasService:
         longform: OpenAIParsedResult[LongformIdeasPayload],
         shortform: OpenAIParsedResult[ShortformIdeasPayload],
         planner: OpenAIParsedResult[PlannerIdeasPayload],
-    ) -> GenerateIdeasResponse:
+    ) -> IdeasGenerationArtifacts:
         job_id = await create_job(job_namespace="ideas", resource_id=str(context.channel.id))
         await set_job_status(job_id=job_id, status="processing")
 
@@ -286,6 +294,11 @@ class IdeasService:
             title_hooks=longform.payload.title_hooks,
             thumbnail_angles=longform.payload.thumbnail_angles,
             content_calendar=planner.payload.content_calendar,
+        )
+        usage = self._build_usage_breakdown(
+            longform=longform.usage,
+            shortform=shortform.usage,
+            planner=planner.usage,
         )
         model_names = sorted({longform.model_name, shortform.model_name, planner.model_name})
         ideas_row = GeneratedContent(
@@ -301,6 +314,7 @@ class IdeasService:
                 "trend_loaded": bool(context.trend_items),
                 "trend_items": context.trend_items[:5],
                 "current_year": datetime.now(UTC).year,
+                "openai_usage": usage.model_dump(),
             },
             result_json=payload.model_dump(),
             status="completed",
@@ -313,7 +327,7 @@ class IdeasService:
         logger.debug(
             "agent.ideas.completed channel_id=%s job_id=%s model=%s "
             "trend_geo=%s trend_loaded=%s video_ideas=%s shorts_ideas=%s "
-            "title_hooks=%s thumbnail_angles=%s calendar_items=%s",
+            "title_hooks=%s thumbnail_angles=%s calendar_items=%s total_tokens=%s",
             context.channel.id,
             job_id,
             ideas_row.model_name,
@@ -324,10 +338,14 @@ class IdeasService:
             len(payload.title_hooks),
             len(payload.thumbnail_angles),
             len(payload.content_calendar),
+            usage.total.total_tokens,
         )
-        return GenerateIdeasResponse(
-            job_id=job_id,
-            ideas=self._serialize_ideas(ideas_row),
+        return IdeasGenerationArtifacts(
+            response=GenerateIdeasResponse(
+                job_id=job_id,
+                ideas=self._serialize_ideas(ideas_row),
+            ),
+            usage=usage,
         )
 
     async def get_channel_ideas(self, channel_id: UUID) -> ContentIdeasResponse | None:
@@ -362,3 +380,30 @@ class IdeasService:
         if not items:
             return "No relevant trend items were available."
         return "\n".join(f"- {item}" for item in items[: settings.trend_max_items])
+
+    @staticmethod
+    def _build_usage_breakdown(
+        *,
+        longform: OpenAIUsage,
+        shortform: OpenAIUsage,
+        planner: OpenAIUsage,
+    ) -> OpenAIUsageBreakdown:
+        total = OpenAIUsage(
+            input_tokens=longform.input_tokens + shortform.input_tokens + planner.input_tokens,
+            output_tokens=(
+                longform.output_tokens + shortform.output_tokens + planner.output_tokens
+            ),
+            total_tokens=longform.total_tokens + shortform.total_tokens + planner.total_tokens,
+            reasoning_tokens=(
+                longform.reasoning_tokens
+                + shortform.reasoning_tokens
+                + planner.reasoning_tokens
+            ),
+            cached_tokens=longform.cached_tokens + shortform.cached_tokens + planner.cached_tokens,
+        )
+        return OpenAIUsageBreakdown(
+            longform=longform,
+            shortform=shortform,
+            planner=planner,
+            total=total,
+        )

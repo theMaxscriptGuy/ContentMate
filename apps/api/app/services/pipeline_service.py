@@ -77,7 +77,8 @@ class PipelineService:
         workflow_response.job_id = job_id
         logger.debug(
             "pipeline.run.completed job_id=%s channel_id=%s "
-            "analyzed_videos=%s analyzed_transcripts=%s",
+            "analyzed_videos=%s analyzed_transcripts=%s "
+            "token_usage=see agent.workflow.completed",
             job_id,
             workflow_response.channel_sync.channel.id,
             workflow_response.analysis.result.analyzed_video_count,
