@@ -26,5 +26,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     unlimited_analysis_granted_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     channels = relationship("Channel", back_populates="user")
+    credit_account = relationship(
+        "UserCreditAccount",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    credit_ledger_entries = relationship("CreditLedgerEntry", back_populates="user")
     generated_content = relationship("GeneratedContent", back_populates="user")
     usage_events = relationship("UsageEvent", back_populates="user")

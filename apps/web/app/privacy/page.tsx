@@ -28,13 +28,14 @@ const sections = [
       "We may collect YouTube channel URLs, public video URLs, prompts, notes, content briefs, drafts, titles, descriptions, scripts, hooks, files, feedback, and support communications that you submit.",
       "We may collect public YouTube channel metadata, public video metadata, thumbnails, durations, counts, captions, subtitles, or transcripts where accessible.",
       "We may collect generated outputs such as channel analysis, topic insights, content strategy recommendations, video ideas, shorts ideas, thumbnail concepts, and content calendars.",
-      "We may collect usage, device, log, analytics, security, diagnostic, and performance data."
+      "We may collect usage, device, log, analytics, security, diagnostic, and performance data.",
+      "We may collect account access status, voucher redemption status, credit balances, credit usage records, and usage-limit events."
     ]
   },
   {
     title: "3. How We Use Information",
     body: [
-      "We use information to provide, operate, secure, maintain, and improve the Service; authenticate users; process YouTube URLs and public metadata; generate analyses and content ideas; store user history; enforce usage limits; prevent abuse; debug errors; provide support; develop new features; create aggregated or de-identified data; comply with law; and enforce our rights."
+      "We use information to provide, operate, secure, maintain, and improve the Service; authenticate users; process YouTube URLs and public metadata; generate analyses and content ideas; store user history; enforce usage limits; grant, track, consume, suspend, or revoke promotional access, voucher-based access, free daily usage, or credits; prevent abuse; debug errors; provide support; develop new features; create aggregated or de-identified data; comply with law; and enforce our rights."
     ]
   },
   {
@@ -71,7 +72,7 @@ const sections = [
   {
     title: "8. Retention and Security",
     body: [
-      "We may retain information for as long as reasonably necessary to provide user history, operate and improve the Service, maintain security, prevent fraud, debug issues, comply with legal obligations, resolve disputes, and enforce agreements.",
+      "We may retain information for as long as reasonably necessary to provide user history, maintain credit balances, access entitlements, voucher redemption records, usage-limit history, operate and improve the Service, maintain security, prevent fraud, debug issues, comply with legal obligations, resolve disputes, and enforce agreements.",
       "We may retain aggregated, anonymized, de-identified, derived, or statistical data indefinitely where permitted by law.",
       "We use reasonable administrative, technical, and organizational safeguards designed to protect information, but no online service can guarantee absolute security."
     ]

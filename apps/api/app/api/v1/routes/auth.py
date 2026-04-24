@@ -15,6 +15,7 @@ from app.schemas.auth import (
     VoucherRedeemRequest,
 )
 from app.services.auth_service import AuthError, AuthService
+from app.services.credit_service import CreditService
 from app.services.usage_service import UsageService, UsageStatus
 from app.services.voucher_service import VoucherError, VoucherService
 
@@ -43,12 +44,15 @@ async def login_with_google(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
     usage = await UsageService(session=session).get_analysis_status(user_id=user.id)
+    credit_status = await CreditService(session=session).get_credit_status(user_id=user.id)
+    usage.analysis_credit_balance = credit_status.balance
     logger.debug(
-        "auth.google.response request_id=%s user_id=%s email=%s analyses_remaining=%s",
+        "auth.google.response request_id=%s user_id=%s email=%s analyses_remaining=%s credits=%s",
         request_id,
         user.id,
         user.email,
         usage.remaining_today,
+        usage.analysis_credit_balance,
     )
     return AuthResponse(
         access_token=token,
@@ -63,11 +67,14 @@ async def get_me(
     session: AsyncSession = Depends(get_db_session),  # noqa: B008
 ) -> AuthResponse:
     usage = await UsageService(session=session).get_analysis_status(user_id=current_user.id)
+    credit_status = await CreditService(session=session).get_credit_status(user_id=current_user.id)
+    usage.analysis_credit_balance = credit_status.balance
     logger.debug(
-        "auth.me.response user_id=%s email=%s analyses_remaining=%s",
+        "auth.me.response user_id=%s email=%s analyses_remaining=%s credits=%s",
         current_user.id,
         current_user.email,
         usage.remaining_today,
+        usage.analysis_credit_balance,
     )
     return AuthResponse(
         access_token="",
@@ -92,11 +99,14 @@ async def redeem_voucher(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     usage = await UsageService(session=session).get_analysis_status(user_id=user.id)
+    credit_status = await CreditService(session=session).get_credit_status(user_id=user.id)
+    usage.analysis_credit_balance = credit_status.balance
     logger.debug(
-        "auth.voucher.redeemed user_id=%s email=%s unlimited_access=%s",
+        "auth.voucher.redeemed user_id=%s email=%s unlimited_access=%s credits=%s",
         user.id,
         user.email,
         usage.unlimited_access,
+        usage.analysis_credit_balance,
     )
     return AuthResponse(
         access_token="",
@@ -111,5 +121,6 @@ def _serialize_usage(status: UsageStatus) -> UsageStatusResponse:
         analyses_used_today=status.used_today,
         analyses_remaining_today=status.remaining_today,
         unlimited_access=status.unlimited_access,
+        analysis_credit_balance=status.analysis_credit_balance,
         resets_at=status.resets_at.isoformat(),
     )

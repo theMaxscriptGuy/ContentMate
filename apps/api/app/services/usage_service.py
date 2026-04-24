@@ -24,6 +24,7 @@ class UsageStatus:
     remaining_today: int
     resets_at: datetime
     unlimited_access: bool = False
+    analysis_credit_balance: int = 0
 
 
 class UsageService:

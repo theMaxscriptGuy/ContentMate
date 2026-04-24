@@ -26,6 +26,7 @@ class UsageStatusResponse(BaseModel):
     analyses_used_today: int
     analyses_remaining_today: int
     unlimited_access: bool
+    analysis_credit_balance: int
     resets_at: str
 
 

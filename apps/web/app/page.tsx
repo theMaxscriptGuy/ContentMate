@@ -122,6 +122,7 @@ type UsageStatus = {
   analyses_used_today: number;
   analyses_remaining_today: number;
   unlimited_access: boolean;
+  analysis_credit_balance: number;
   resets_at: string;
 };
 
@@ -674,14 +675,18 @@ export default function Home() {
           state={stageState(3, isLoading, result, activeStageIndex)}
         />
         <StatusCard
-          label="Daily Limit"
+          label="Free Runs"
           state={
             usage
               ? usage.unlimited_access
                 ? "Unlimited"
-                : `${usage.analyses_remaining_today}/${usage.daily_analysis_limit} left`
+                : `${usage.analyses_remaining_today}/${usage.daily_analysis_limit} left today`
               : "Login required"
           }
+        />
+        <StatusCard
+          label="Credits"
+          state={usage ? `${usage.analysis_credit_balance} available` : "Login required"}
         />
       </section>
 
@@ -690,7 +695,7 @@ export default function Home() {
           <div className="historyHeader">
             <div>
               <p className="sectionLabel">Access</p>
-              <h2>{usage?.unlimited_access ? "Unlimited access enabled" : "Redeem voucher"}</h2>
+              <h2>{usage?.unlimited_access ? "Unlimited access enabled" : "Access and credits"}</h2>
             </div>
           </div>
           {usage?.unlimited_access ? (
@@ -699,6 +704,11 @@ export default function Home() {
             </p>
           ) : (
             <>
+              <p className="historyEmpty">
+                You get <strong>{usage?.daily_analysis_limit ?? 0} free analyses per day</strong>.
+                After that, each additional analysis uses <strong>1 credit</strong>. Current balance:{" "}
+                <strong>{usage?.analysis_credit_balance ?? 0}</strong>.
+              </p>
               <div className="commandBar">
                 <input
                   aria-label="Voucher code"

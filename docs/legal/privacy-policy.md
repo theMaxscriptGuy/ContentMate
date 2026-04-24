@@ -90,6 +90,8 @@ We may collect information about how the Service is accessed and used, including
 - Feature interactions
 - Browser, device, operating system, approximate location, and referral source
 - IP address, logs, timestamps, errors, diagnostic data, and security events
+- Account access status, voucher redemption status, credit balances, credit
+  usage records, and usage-limit events
 
 We may use Vercel Analytics and other analytics or hosting tools to measure
 traffic, performance, reliability, and product usage.
@@ -100,6 +102,10 @@ If paid plans, billing, subscriptions, invoices, credits, or usage-based pricing
 are introduced, we may collect billing-related information directly or through
 payment processors. Payment processors may process card or payment details under
 their own terms and privacy policies.
+
+We may also maintain internal records relating to free daily usage, promotional
+access, voucher codes, credit grants, credit consumption, refunds, reversals,
+and account-level access status.
 
 ## 3. How We Use Information
 
@@ -112,6 +118,8 @@ We may use information for the following purposes:
 - Generate analyses, strategy recommendations, content ideas, and other outputs
 - Store user history and make prior analyses available to signed-in users
 - Enforce usage limits, quotas, abuse prevention, and security controls
+- Grant, track, consume, suspend, or revoke promotional access, voucher-based
+  access, free daily usage, or credits
 - Debug errors, monitor performance, prevent fraud, and protect the Service
 - Provide support and respond to inquiries
 - Develop new features, models, workflows, datasets, benchmarks, and internal
@@ -242,6 +250,8 @@ We may retain information for as long as reasonably necessary for the purposes
 described in this policy, including:
 
 - Providing user history and saved analyses
+- Maintaining credit balances, access entitlements, voucher redemption records,
+  usage-limit history, and audit trails for account activity
 - Operating and improving the Service
 - Security, fraud prevention, debugging, and audit
 - Legal, tax, accounting, contractual, and compliance obligations
@@ -317,4 +327,3 @@ ContentMatePro
 Email: create@contentmatepro.com
 
 Website: https://www.contentmatepro.com
-

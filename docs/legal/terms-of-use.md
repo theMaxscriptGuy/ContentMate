@@ -118,13 +118,30 @@ We may impose usage limits, daily limits, quotas, rate limits, feature limits,
 or access restrictions. We may change, suspend, or discontinue any part of the
 Service at any time.
 
-The current v1 Service may limit users to two analyses per user per day.
+The Service may include a free daily analysis allowance, promotional access,
+voucher-based access, credits, or other entitlements that govern how many
+analyses or features a user may use. Unless we explicitly state otherwise in
+writing, credits, vouchers, promotional entitlements, and similar access grants:
+
+- may be limited, suspended, revoked, or changed at our discretion
+- may expire or be withdrawn
+- may be non-transferable and non-refundable
+- do not create a property right, stored-value right, bank account, or monetary
+  balance
+
+The current Service may limit users to two free analyses per user per day, with
+additional access available through promotional or credit-based mechanisms where
+offered.
 
 ## 9. Fees
 
 If paid plans are introduced, you agree to pay all applicable fees, taxes, and
 charges. Fees may be non-refundable except where required by law or expressly
 stated in a separate written agreement.
+
+If we later offer paid credit packs, subscriptions, or usage-based access,
+additional purchase terms, billing terms, refund rules, and payment-processor
+terms may apply.
 
 ## 10. Privacy
 
@@ -191,4 +208,3 @@ ContentMatePro
 Email: create@contentmatepro.com
 
 Website: https://www.contentmatepro.com
-

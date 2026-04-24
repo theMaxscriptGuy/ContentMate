@@ -8,6 +8,7 @@ from app.core.rate_limit import enforce_pipeline_rate_limit
 from app.db.models.user import User
 from app.db.session import get_db_session
 from app.schemas.pipeline import RunPipelineRequest, RunPipelineResponse
+from app.services.credit_service import CreditService, InsufficientCreditsError
 from app.services.pipeline_service import PipelineRunError, PipelineService
 from app.services.usage_service import UsageLimitExceededError, UsageService
 
@@ -38,16 +39,44 @@ async def run_channel_pipeline(
     )
     await enforce_pipeline_rate_limit(request)
     usage_service = UsageService(session=session)
+    credit_service = CreditService(session=session)
+    status_snapshot = await usage_service.get_analysis_status(user_id=current_user.id)
+    use_credit = False
     try:
         await usage_service.assert_can_run_analysis(user_id=current_user.id)
     except UsageLimitExceededError as exc:
-        logger.debug(
-            "pipeline.route.rate_limited request_id=%s user_id=%s detail=%s",
-            request_id,
-            current_user.id,
-            str(exc),
-        )
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
+        if not status_snapshot.unlimited_access:
+            credit_status = await credit_service.get_credit_status(user_id=current_user.id)
+            if credit_status.balance > 0:
+                use_credit = True
+                logger.debug(
+                    "pipeline.route.credit_fallback request_id=%s user_id=%s credits=%s",
+                    request_id,
+                    current_user.id,
+                    credit_status.balance,
+                )
+            else:
+                logger.debug(
+                    "pipeline.route.rate_limited request_id=%s user_id=%s detail=%s",
+                    request_id,
+                    current_user.id,
+                    str(exc),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail="Daily free limit reached. Buy credits to continue.",
+                ) from exc
+        else:
+            logger.debug(
+                "pipeline.route.rate_limited request_id=%s user_id=%s detail=%s",
+                request_id,
+                current_user.id,
+                str(exc),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(exc),
+            ) from exc
 
     service = PipelineService(session=session)
     try:
@@ -69,14 +98,27 @@ async def run_channel_pipeline(
         )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    await usage_service.record_analysis(
-        user_id=current_user.id,
-        resource_id=str(payload.channel_url),
-    )
+    if not status_snapshot.unlimited_access:
+        if use_credit:
+            try:
+                await credit_service.consume_analysis_credit(
+                    user_id=current_user.id,
+                    reference_id=str(payload.channel_url),
+                )
+            except InsufficientCreditsError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail=str(exc),
+                ) from exc
+        else:
+            await usage_service.record_analysis(
+                user_id=current_user.id,
+                resource_id=str(payload.channel_url),
+            )
     logger.debug(
         "pipeline.route.response request_id=%s user_id=%s channel_id=%s "
         "job_id=%s transcript_fetched=%s transcript_failed=%s "
-        "analyzed_videos=%s analyzed_transcripts=%s ideas_model=%s",
+        "analyzed_videos=%s analyzed_transcripts=%s ideas_model=%s used_credit=%s",
         request_id,
         current_user.id,
         response.channel_sync.channel.id,
@@ -86,5 +128,6 @@ async def run_channel_pipeline(
         response.analysis.result.analyzed_video_count,
         response.analysis.result.analyzed_transcript_count,
         response.ideas.model_name,
+        use_credit,
     )
     return response
