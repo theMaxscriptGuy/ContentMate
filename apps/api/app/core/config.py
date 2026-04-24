@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     auth_token_secret: str = Field(default="change-me-in-production")
     auth_token_ttl_seconds: int = 604800
     google_client_id: str = Field(default="")
-    daily_analysis_limit: int = 5
+    daily_analysis_limit: int = 2
     rate_limit_global_requests_per_minute: int = 100
     rate_limit_auth_requests_per_minute: int = 10
     rate_limit_pipeline_requests_per_hour: int = 3
