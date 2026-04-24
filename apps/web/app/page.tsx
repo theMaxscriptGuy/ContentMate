@@ -108,6 +108,7 @@ type AuthUser = {
   email: string;
   name: string | null;
   avatar_url: string | null;
+  has_unlimited_analysis: boolean;
 };
 
 type AuthResponse = {
@@ -120,6 +121,7 @@ type UsageStatus = {
   daily_analysis_limit: number;
   analyses_used_today: number;
   analyses_remaining_today: number;
+  unlimited_access: boolean;
   resets_at: string;
 };
 
@@ -214,6 +216,9 @@ export default function Home() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [usage, setUsage] = useState<UsageStatus | null>(null);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [isRedeemingVoucher, setIsRedeemingVoucher] = useState(false);
+  const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
   const [activeStageIndex, setActiveStageIndex] = useState(0);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const pendingAnalyzeRef = useRef(false);
@@ -365,6 +370,8 @@ export default function Home() {
     setResult(null);
     setHistory([]);
     setUsage(null);
+    setVoucherCode("");
+    setVoucherMessage(null);
   }
 
   async function loadUsage(token: string) {
@@ -377,8 +384,50 @@ export default function Home() {
         throw new Error(payload.detail ?? "Could not load usage");
       }
       setUsage(payload.usage);
+      setUser(payload.user);
+      window.localStorage.setItem("contentmate_user", JSON.stringify(payload.user));
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Could not load usage");
+    }
+  }
+
+  async function redeemVoucher() {
+    if (!authToken) {
+      setError("Sign in with Google to redeem a voucher.");
+      return;
+    }
+    if (!voucherCode.trim()) {
+      setError("Enter a voucher code.");
+      return;
+    }
+
+    setIsRedeemingVoucher(true);
+    setVoucherMessage(null);
+    setError(null);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/redeem-voucher`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ code: voucherCode })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail ?? "Could not redeem voucher");
+      }
+      const authPayload = payload as AuthResponse;
+      setUser(authPayload.user);
+      setUsage(authPayload.usage);
+      setVoucherCode("");
+      setVoucherMessage("Voucher applied. This account now has unlimited analysis access.");
+      window.localStorage.setItem("contentmate_user", JSON.stringify(authPayload.user));
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Could not redeem voucher");
+    } finally {
+      setIsRedeemingVoucher(false);
     }
   }
 
@@ -628,11 +677,49 @@ export default function Home() {
           label="Daily Limit"
           state={
             usage
-              ? `${usage.analyses_remaining_today}/${usage.daily_analysis_limit} left`
+              ? usage.unlimited_access
+                ? "Unlimited"
+                : `${usage.analyses_remaining_today}/${usage.daily_analysis_limit} left`
               : "Login required"
           }
         />
       </section>
+
+      {user ? (
+        <section className="historyPanel">
+          <div className="historyHeader">
+            <div>
+              <p className="sectionLabel">Access</p>
+              <h2>{usage?.unlimited_access ? "Unlimited access enabled" : "Redeem voucher"}</h2>
+            </div>
+          </div>
+          {usage?.unlimited_access ? (
+            <p className="historyEmpty">
+              This account can run analyses without the daily counter being applied.
+            </p>
+          ) : (
+            <>
+              <div className="commandBar">
+                <input
+                  aria-label="Voucher code"
+                  onChange={(event) => setVoucherCode(event.target.value)}
+                  placeholder="Enter voucher code"
+                  type="text"
+                  value={voucherCode}
+                />
+                <button
+                  disabled={isRedeemingVoucher || !voucherCode.trim()}
+                  onClick={redeemVoucher}
+                  type="button"
+                >
+                  {isRedeemingVoucher ? "Applying..." : "Apply Code"}
+                </button>
+              </div>
+              {voucherMessage ? <p className="historyEmpty">{voucherMessage}</p> : null}
+            </>
+          )}
+        </section>
+      ) : null}
 
       {(isLoading || result) && (
         <section className="progressPanel">

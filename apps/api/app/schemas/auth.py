@@ -7,11 +7,16 @@ class GoogleLoginRequest(BaseModel):
     credential: str = Field(min_length=20, max_length=5000)
 
 
+class VoucherRedeemRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=128)
+
+
 class AuthUser(BaseModel):
     id: UUID
     email: str
     name: str | None
     avatar_url: str | None
+    has_unlimited_analysis: bool
 
     model_config = {"from_attributes": True}
 
@@ -20,6 +25,7 @@ class UsageStatusResponse(BaseModel):
     daily_analysis_limit: int
     analyses_used_today: int
     analyses_remaining_today: int
+    unlimited_access: bool
     resets_at: str
 
 
