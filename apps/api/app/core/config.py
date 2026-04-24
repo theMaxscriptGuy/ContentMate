@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
+    log_to_file: bool = True
+    log_file_path: str = "logs/contentmate-api.log"
     cors_allowed_origins: str = Field(
         default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
     )
@@ -34,6 +36,9 @@ class Settings(BaseSettings):
     youtube_scan_limit: int = 0
     youtube_candidate_pool_size: int = 10
     transcript_use_ytdlp_fallback: bool = True
+    trend_context_enabled: bool = True
+    trend_default_geo: str = "US"
+    trend_max_items: int = 10
 
     auth_token_secret: str = Field(default="change-me-in-production")
     auth_token_ttl_seconds: int = 604800
@@ -49,6 +54,7 @@ class Settings(BaseSettings):
     openai_analysis_max_transcript_chars: int = 60000
 
     request_timeout_seconds: float = 20.0
+    trend_request_timeout_seconds: float = 8.0
 
     model_config = SettingsConfigDict(
         env_file=_find_env_files(),

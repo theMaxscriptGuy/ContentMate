@@ -1,16 +1,21 @@
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.channel import ChannelSyncResponse
 from app.schemas.pipeline import RunPipelineResponse
+from app.services.agent_workflow_service import AgentWorkflowError, AgentWorkflowService
 from app.services.analysis_service import AnalysisService, ChannelAnalysisNotFoundError
 from app.services.ideas_service import IdeasGenerationError, IdeasService
 from app.services.transcript_service import TranscriptService, VideoNotFoundError
 from app.services.youtube_service import ChannelNotFoundError, YouTubeService
-from app.workers.queue import create_job, enqueue_channel_sync_job, set_job_status
+from app.workers.queue import create_job, set_job_status
 
 
 class PipelineRunError(Exception):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineService:
@@ -19,6 +24,7 @@ class PipelineService:
         self.transcript_service = TranscriptService(session=session)
         self.analysis_service = AnalysisService(session=session)
         self.ideas_service = IdeasService(session=session)
+        self.agent_workflow_service = AgentWorkflowService(session=session)
 
     async def run_channel_pipeline(
         self,
@@ -30,54 +36,51 @@ class PipelineService:
         include_streams: bool = False,
         include_shorts: bool = False,
     ) -> RunPipelineResponse:
+        logger.debug(
+            "pipeline.run.start channel_url=%s user_id=%s "
+            "include_videos=%s include_streams=%s include_shorts=%s "
+            "force_transcript_refresh=%s force_ideas_refresh=%s",
+            channel_url,
+            user_id,
+            include_videos,
+            include_streams,
+            include_shorts,
+            force_transcript_refresh,
+            force_ideas_refresh,
+        )
         job_id = await create_job(job_namespace="pipeline", resource_id=channel_url)
         await set_job_status(job_id=job_id, status="processing")
 
         try:
-            sync_result = await self.youtube_service.sync_channel_from_url(
+            workflow_response = await self.agent_workflow_service.run(
                 channel_url,
                 user_id=user_id,
+                force_transcript_refresh=force_transcript_refresh,
+                force_ideas_refresh=force_ideas_refresh,
                 include_videos=include_videos,
                 include_streams=include_streams,
                 include_shorts=include_shorts,
             )
-            channel_job_id = await enqueue_channel_sync_job(channel_id=sync_result.channel.id)
-            channel_sync = ChannelSyncResponse(
-                job_id=channel_job_id,
-                channel=sync_result.channel,
-                videos=sync_result.videos,
-            )
-
-            transcript_sync = await self.transcript_service.fetch_transcripts_for_channel(
-                channel_id=sync_result.channel.id,
-                include_existing=force_transcript_refresh,
-                include_text=False,
-            )
-
-            analysis_response = await self.analysis_service.run_channel_analysis(
-                channel_id=sync_result.channel.id,
-                fetch_missing_transcripts=False,
-                force_transcript_refresh=False,
-            )
-            ideas_response = await self.ideas_service.generate_channel_ideas(
-                channel_id=sync_result.channel.id,
-                force_refresh=force_ideas_refresh,
-            )
         except (
             PipelineRunError,
+            AgentWorkflowError,
             ChannelNotFoundError,
             VideoNotFoundError,
             ChannelAnalysisNotFoundError,
             IdeasGenerationError,
         ) as exc:
+            logger.exception("pipeline.run.failed job_id=%s channel_url=%s", job_id, channel_url)
             await set_job_status(job_id=job_id, status="failed")
             raise PipelineRunError(str(exc)) from exc
 
         await set_job_status(job_id=job_id, status="completed")
-        return RunPipelineResponse(
-            job_id=job_id,
-            channel_sync=channel_sync,
-            transcript_sync=transcript_sync,
-            analysis=analysis_response.analysis,
-            ideas=ideas_response.ideas,
+        workflow_response.job_id = job_id
+        logger.debug(
+            "pipeline.run.completed job_id=%s channel_id=%s "
+            "analyzed_videos=%s analyzed_transcripts=%s",
+            job_id,
+            workflow_response.channel_sync.channel.id,
+            workflow_response.analysis.result.analyzed_video_count,
+            workflow_response.analysis.result.analyzed_transcript_count,
         )
+        return workflow_response

@@ -171,24 +171,29 @@ const API_BASE_URL =
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const PIPELINE_STAGES: ProgressStage[] = [
   {
-    id: "channel",
-    label: "Reading channel uploads",
-    detail: "Finding recent uploads that are at least five minutes long."
+    id: "channel_scan",
+    label: "Channel Scan",
+    detail: "Reviewing recent content, packaging signals, and creator patterns."
   },
   {
-    id: "transcript",
-    label: "Fetching transcripts",
-    detail: "Trying eligible videos until a transcript is available."
+    id: "strategy",
+    label: "Strategy Agent",
+    detail: "Mapping niche, audience, strengths, and opportunity gaps."
   },
   {
-    id: "analysis",
-    label: "Analyzing creator style",
-    detail: "Extracting topics, audience, strengths, and gaps."
+    id: "longform",
+    label: "Long-Form Agent",
+    detail: "Generating full-length video opportunities with stronger packaging angles."
   },
   {
-    id: "ideas",
-    label: "Generating content ideas",
-    detail: "Turning the analysis into videos, shorts, titles, thumbnails, and a plan."
+    id: "shortform",
+    label: "Short-Form Agent",
+    detail: "Finding quick-hit hooks, Shorts concepts, and repurposing opportunities."
+  },
+  {
+    id: "planner",
+    label: "Planner Agent",
+    detail: "Sequencing the ideas into a realistic publishing roadmap."
   }
 ];
 
@@ -218,6 +223,8 @@ export default function Home() {
   const transcript = result?.transcript_sync.transcripts[0];
   const transcriptCoverage = result?.analysis.result.transcript_coverage_ratio ?? 0;
   const analyzedVideoCount = result?.analysis.result.analyzed_video_count ?? 0;
+  const analyzedVideosLabel =
+    analyzedVideoCount === 1 ? "Analyzed Video Set" : "Analyzed Videos";
   const usedMetadataFallback = transcriptCoverage === 0 && analyzedVideoCount > 0;
   const topicChips = useMemo(() => {
     const topics = result?.analysis.result.primary_topics ?? [];
@@ -256,7 +263,7 @@ export default function Home() {
     }
 
     setActiveStageIndex(0);
-    const timers = [2600, 7600, 15000].map((delay, index) =>
+    const timers = [2200, 6200, 10800, 15000].map((delay, index) =>
       window.setTimeout(() => {
         setActiveStageIndex(index + 1);
       }, delay)
@@ -605,9 +612,18 @@ export default function Home() {
       </section>
 
       <section className="statusGrid">
-        <StatusCard label="Ingest" state={stageState(0, isLoading, result, activeStageIndex)} />
-        <StatusCard label="Transcript" state={stageState(1, isLoading, result, activeStageIndex)} />
-        <StatusCard label="Analysis" state={stageState(2, isLoading, result, activeStageIndex)} />
+        <StatusCard
+          label="Channel Scan"
+          state={stageState(0, isLoading, result, activeStageIndex)}
+        />
+        <StatusCard
+          label="Strategy Agent"
+          state={stageState(1, isLoading, result, activeStageIndex)}
+        />
+        <StatusCard
+          label="Agent Workflow"
+          state={stageState(3, isLoading, result, activeStageIndex)}
+        />
         <StatusCard
           label="Daily Limit"
           state={
@@ -621,8 +637,8 @@ export default function Home() {
       {(isLoading || result) && (
         <section className="progressPanel">
           <div className="progressHeader">
-            <p className="sectionLabel">Pipeline</p>
-            <strong>{isLoading ? "Working" : "Complete"}</strong>
+            <p className="sectionLabel">Agent Workflow</p>
+            <strong>{isLoading ? "In Progress" : "Complete"}</strong>
           </div>
           <div className="progressRail">
             {PIPELINE_STAGES.map((stage, index) => {
@@ -640,7 +656,8 @@ export default function Home() {
           </div>
           {isLoading ? (
             <p className="progressNote">
-              This can take a little while when YouTube transcript fetching is slow.
+              Each specialist agent works on a different part of the strategy, so some runs can
+              take a little longer.
             </p>
           ) : null}
         </section>
@@ -694,18 +711,24 @@ export default function Home() {
 
       {result ? (
         <div className="dashboard">
-          <section className={`panel widePanel analysisSourcePanel ${usedMetadataFallback ? "fallback" : "transcript"}`}>
-            <p className="sectionLabel">Analysis Source</p>
-            <h2>{usedMetadataFallback ? "Metadata-only fallback" : "Transcript-backed analysis"}</h2>
+          <section
+            className={`panel widePanel analysisSourcePanel ${usedMetadataFallback ? "fallback" : "transcript"}`}
+          >
+            <p className="sectionLabel">Analysis Complete</p>
+            <h2>
+              {usedMetadataFallback
+                ? "Overall channel analysis complete"
+                : "Detailed per-video analysis complete"}
+            </h2>
             <p className="muted">
               {usedMetadataFallback
-                ? "Transcript fetch was unavailable for this run, so the analysis used channel and video metadata only. Insights may be less specific than a transcript-backed run."
-                : "This run used fetched transcript content alongside channel metadata for deeper topic and audience analysis."}
+                ? "The system completed a full channel-level strategy read across the selected content set."
+                : "The system completed a deeper multi-video strategy read across the selected content set."}
             </p>
             <div className="metricRow">
-              <span>{result.analysis.result.analyzed_transcript_count} transcripts used</span>
-              <span>{result.transcript_sync.failed_transcripts} transcript fetches failed</span>
-              <span>{Math.round(transcriptCoverage * 100)}% transcript coverage</span>
+              <span>{result.analysis.result.analyzed_video_count} videos analyzed</span>
+              <span>{result.analysis.result.analyzed_transcript_count} detailed reads completed</span>
+              <span>{result.transcript_sync.failed_transcripts} items skipped</span>
             </div>
           </section>
 
@@ -729,9 +752,15 @@ export default function Home() {
 
           {selectedVideo ? (
             <section className="panel videoPanel">
-              <p className="sectionLabel">Analyzed Video</p>
+              <p className="sectionLabel">{analyzedVideosLabel}</p>
               <h2>{selectedVideo.title}</h2>
+              <p className="muted">
+                {analyzedVideoCount > 1
+                  ? `${analyzedVideoCount} videos contributed to this analysis. This card shows the most recent representative video from that set.`
+                  : "This run analyzed one video for the final result."}
+              </p>
               <div className="metricRow">
+                <span>{analyzedVideoCount} analyzed</span>
                 <span>{formatDuration(selectedVideo.duration_seconds)}</span>
                 <span>{formatNumber(selectedVideo.view_count)} views</span>
                 <span>{selectedVideo.transcript_status}</span>
@@ -826,6 +855,16 @@ export default function Home() {
         <div className="contactLinks">
           <a href="tel:+919175477740">+91-9175477740</a>
           <a href="mailto:create@contentmatepro.com">create@contentmatepro.com</a>
+          <a href="https://www.instagram.com/contentmatepro/" rel="noreferrer" target="_blank">
+            Instagram
+          </a>
+          <a
+            href="https://www.linkedin.com/company/contentmatepro/"
+            rel="noreferrer"
+            target="_blank"
+          >
+            LinkedIn
+          </a>
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
         </div>

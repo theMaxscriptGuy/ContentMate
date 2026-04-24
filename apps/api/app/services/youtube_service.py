@@ -1,5 +1,6 @@
+import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,9 @@ from app.schemas.channel import ChannelSummary, VideoSummary
 
 class ChannelNotFoundError(Exception):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -40,6 +44,15 @@ class YouTubeService:
         include_streams: bool = False,
         include_shorts: bool = False,
     ) -> ChannelSyncResult:
+        logger.debug(
+            "youtube.sync.start url=%s user_id=%s include_videos=%s "
+            "include_streams=%s include_shorts=%s",
+            channel_url,
+            user_id,
+            include_videos,
+            include_streams,
+            include_shorts,
+        )
         try:
             channel_payload, videos_payload = await self.client.fetch_channel_with_uploaded_videos(
                 channel_url=channel_url,
@@ -55,6 +68,12 @@ class YouTubeService:
         videos = await self._upsert_videos(channel_id=channel.id, videos_payload=videos_payload)
         await self.session.commit()
         await self.session.refresh(channel)
+        logger.debug(
+            "youtube.sync.completed channel_id=%s youtube_channel_id=%s videos=%s",
+            channel.id,
+            channel.youtube_channel_id,
+            len(videos),
+        )
         return ChannelSyncResult(
             channel=ChannelSummary.model_validate(channel),
             videos=[VideoSummary.model_validate(video) for video in videos],
@@ -100,7 +119,7 @@ class YouTubeService:
                 video_count=payload.video_count,
                 thumbnail_url=payload.thumbnail_url,
                 analysis_status="pending",
-                last_synced_at=datetime.now(timezone.utc),
+                last_synced_at=datetime.now(UTC),
             )
             self.session.add(channel)
             await self.session.flush()
@@ -115,7 +134,7 @@ class YouTubeService:
         channel.subscriber_count = payload.subscriber_count
         channel.video_count = payload.video_count
         channel.thumbnail_url = payload.thumbnail_url
-        channel.last_synced_at = datetime.now(timezone.utc)
+        channel.last_synced_at = datetime.now(UTC)
         await self.session.flush()
         return channel
 

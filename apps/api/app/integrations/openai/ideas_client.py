@@ -1,10 +1,22 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Generic, TypeVar
+
+from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.schemas.analysis import ChannelAnalysisPayload
-from app.schemas.ideas import ContentIdeasPayload
+from app.schemas.ideas import (
+    LongformIdeasPayload,
+    PlannerIdeasPayload,
+    ShortformIdeasPayload,
+)
 
 settings = get_settings()
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class OpenAIIdeasError(Exception):
@@ -12,8 +24,8 @@ class OpenAIIdeasError(Exception):
 
 
 @dataclass(slots=True)
-class OpenAIIdeasResult:
-    payload: ContentIdeasPayload
+class OpenAIParsedResult(Generic[T]):
+    payload: T
     model_name: str
 
 
@@ -25,11 +37,107 @@ class OpenAIIdeasClient:
     def is_configured(self) -> bool:
         return bool(self.api_key.strip())
 
-    def generate_ideas(
+    def generate_longform_ideas(
         self,
         channel_title: str,
         analysis: ChannelAnalysisPayload,
-    ) -> OpenAIIdeasResult:
+        country_hint: str | None = None,
+        trend_context: str | None = None,
+    ) -> OpenAIParsedResult[LongformIdeasPayload]:
+        prompt = self._build_channel_prompt(
+            channel_title=channel_title,
+            analysis=analysis,
+            country_hint=country_hint,
+            trend_context=trend_context,
+        )
+        return self._parse_payload(
+            payload_type=LongformIdeasPayload,
+            system_prompt=(
+                "You are the long-form content agent for a creator strategy system. "
+                "Generate practical YouTube video concepts, title hooks, and thumbnail "
+                "angles that fit the supplied channel analysis."
+            ),
+            user_prompt=(
+                f"{prompt}\n\n"
+                "Task:\n"
+                "- Produce strong long-form YouTube video ideas.\n"
+                "- Video ideas should feel publishable soon, not vague brainstorm notes.\n"
+                "- Title hooks should complement the video ideas, not repeat them mechanically.\n"
+                "- Thumbnail angles should be visual and specific.\n"
+                "- Return only schema-compliant data."
+            ),
+        )
+
+    def generate_shortform_ideas(
+        self,
+        channel_title: str,
+        analysis: ChannelAnalysisPayload,
+        country_hint: str | None = None,
+        trend_context: str | None = None,
+    ) -> OpenAIParsedResult[ShortformIdeasPayload]:
+        prompt = self._build_channel_prompt(
+            channel_title=channel_title,
+            analysis=analysis,
+            country_hint=country_hint,
+            trend_context=trend_context,
+        )
+        return self._parse_payload(
+            payload_type=ShortformIdeasPayload,
+            system_prompt=(
+                "You are the short-form content agent for a creator strategy system. "
+                "Generate sharp, hook-led short-form ideas for YouTube Shorts and "
+                "similar vertical formats."
+            ),
+            user_prompt=(
+                f"{prompt}\n\n"
+                "Task:\n"
+                "- Produce short-form ideas with a strong opening hook.\n"
+                "- Concepts should be easy to execute as Shorts or clips.\n"
+                "- Source moments can reference likely video moments or recurring themes.\n"
+                "- Return only schema-compliant data."
+            ),
+        )
+
+    def generate_planner(
+        self,
+        channel_title: str,
+        analysis: ChannelAnalysisPayload,
+        longform: LongformIdeasPayload,
+        shortform: ShortformIdeasPayload,
+        country_hint: str | None = None,
+    ) -> OpenAIParsedResult[PlannerIdeasPayload]:
+        region_label = country_hint or "global"
+        today = datetime.now(UTC).date().isoformat()
+        current_year = datetime.now(UTC).year
+        return self._parse_payload(
+            payload_type=PlannerIdeasPayload,
+            system_prompt=(
+                "You are the planning agent for a creator strategy system. "
+                "Build a compact, realistic 4-week publishing plan from the supplied "
+                "channel strategy plus proposed long-form and short-form ideas."
+            ),
+            user_prompt=(
+                f"Today is {today}. The current year is {current_year}.\n"
+                f"Channel: {channel_title}\n"
+                f"Country/region hint: {region_label}\n\n"
+                "Rules:\n"
+                "- Sequence ideas in a sensible order across 4 weeks.\n"
+                "- Mix long-form and short-form deliberately.\n"
+                "- Keep the plan compact and realistic for one creator team.\n"
+                "- Return only schema-compliant data.\n\n"
+                f"Analysis:\n{analysis.model_dump_json(indent=2)}\n\n"
+                f"Long-form ideas:\n{longform.model_dump_json(indent=2)}\n\n"
+                f"Short-form ideas:\n{shortform.model_dump_json(indent=2)}"
+            ),
+        )
+
+    def _parse_payload(
+        self,
+        *,
+        payload_type: type[T],
+        system_prompt: str,
+        user_prompt: str,
+    ) -> OpenAIParsedResult[T]:
         if not self.is_configured():
             raise OpenAIIdeasError("OPENAI_API_KEY is not configured.")
 
@@ -40,23 +148,16 @@ class OpenAIIdeasClient:
                 "OpenAI SDK is not installed. Run `pip install -e .` in apps/api."
             ) from exc
 
-        prompt = self._build_prompt(channel_title=channel_title, analysis=analysis)
         client = OpenAI(api_key=self.api_key)
 
         try:
             response = client.responses.parse(
                 model=self.model,
                 input=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a YouTube strategist for creator-led channels. "
-                            "Generate concrete, production-ready ideas."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
                 ],
-                text_format=ContentIdeasPayload,
+                text_format=payload_type,
             )
         except Exception as exc:
             raise OpenAIIdeasError(f"OpenAI ideas generation failed: {exc}") from exc
@@ -64,10 +165,21 @@ class OpenAIIdeasClient:
         payload = response.output_parsed
         if payload is None:
             raise OpenAIIdeasError("OpenAI returned no parsed ideas.")
-        return OpenAIIdeasResult(payload=payload, model_name=self.model)
+
+        return OpenAIParsedResult(payload=payload, model_name=self.model)
 
     @staticmethod
-    def _build_prompt(channel_title: str, analysis: ChannelAnalysisPayload) -> str:
+    def _build_channel_prompt(
+        *,
+        channel_title: str,
+        analysis: ChannelAnalysisPayload,
+        country_hint: str | None,
+        trend_context: str | None,
+    ) -> str:
+        today = datetime.now(UTC).date().isoformat()
+        current_year = datetime.now(UTC).year
+        region_label = country_hint or "global"
+        trend_block = trend_context or "No live trend snapshot was available for this run."
         return f"""
 Generate actionable content ideas for this YouTube channel.
 
@@ -75,12 +187,18 @@ Rules:
 - Ground every idea in the supplied channel analysis.
 - Prefer ideas the creator can realistically produce.
 - Make titles specific, clickable, and honest.
-- Shorts ideas should be clip-friendly and easy to produce.
-- Thumbnail angles should describe visual composition, not just text.
-- The calendar should be a compact 4-week publishing plan.
+- Treat today as {today}. The current year is {current_year}.
+- If a title includes a year, it must use {current_year}, never a past year like 2024 or 2025,
+  unless the idea is explicitly a retrospective or historical comparison.
+- Use current trend context from {region_label} only when it genuinely fits the channel niche.
+- Do not force unrelated trends into ideas just because they are currently popular.
 - Return only data that fits the provided schema.
 
 Channel: {channel_title}
+Country/region hint: {region_label}
+
+Current trend context:
+{trend_block}
 
 Analysis:
 {analysis.model_dump_json(indent=2)}

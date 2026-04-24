@@ -1,4 +1,7 @@
+import logging
 from contextlib import asynccontextmanager
+from time import perf_counter
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +13,7 @@ from app.core.logging import configure_logging
 from app.core.rate_limit import RateLimiter, get_client_ip
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def _parse_allowed_origins(raw_origins: str) -> list[str]:
@@ -35,6 +39,48 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_request_response(request: Request, call_next):
+    request_id = uuid4().hex[:12]
+    request.state.request_id = request_id
+    client_ip = get_client_ip(request)
+    started_at = perf_counter()
+
+    logger.debug(
+        "http.request.start request_id=%s method=%s path=%s query=%s client_ip=%s",
+        request_id,
+        request.method,
+        request.url.path,
+        request.url.query or "-",
+        client_ip,
+    )
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((perf_counter() - started_at) * 1000, 2)
+        logger.exception(
+            "http.request.failed request_id=%s method=%s path=%s duration_ms=%s",
+            request_id,
+            request.method,
+            request.url.path,
+            duration_ms,
+        )
+        raise
+
+    duration_ms = round((perf_counter() - started_at) * 1000, 2)
+    response.headers["X-Request-ID"] = request_id
+    logger.debug(
+        "http.request.end request_id=%s method=%s path=%s status=%s duration_ms=%s",
+        request_id,
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
 
 
 @app.middleware("http")

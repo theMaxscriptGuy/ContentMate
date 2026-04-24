@@ -38,6 +38,20 @@ class CalendarItem(BaseModel):
     deliverable: str
 
 
+class LongformIdeasPayload(BaseModel):
+    video_ideas: list[VideoIdea]
+    title_hooks: list[TitleHook]
+    thumbnail_angles: list[ThumbnailAngle]
+
+
+class ShortformIdeasPayload(BaseModel):
+    shorts_ideas: list[ShortIdea]
+
+
+class PlannerIdeasPayload(BaseModel):
+    content_calendar: list[CalendarItem]
+
+
 class ContentIdeasPayload(BaseModel):
     video_ideas: list[VideoIdea]
     shorts_ideas: list[ShortIdea]

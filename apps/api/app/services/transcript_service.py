@@ -1,6 +1,7 @@
 import asyncio
+import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,9 @@ from app.workers.queue import create_job, set_job_status
 
 class VideoNotFoundError(Exception):
     pass
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -45,6 +49,11 @@ class TranscriptService:
         if channel is None:
             raise VideoNotFoundError("Channel not found")
 
+        logger.debug(
+            "transcript.channel.start channel_id=%s include_existing=%s",
+            channel_id,
+            include_existing,
+        )
         videos = await self.channel_repository.list_active_videos_for_channel(str(channel_id))
         job_id = await create_job(job_namespace="transcripts", resource_id=str(channel_id))
         await set_job_status(job_id=job_id, status="processing")
@@ -56,19 +65,47 @@ class TranscriptService:
         for video in videos:
             transcript = await self.repository.get_transcript_by_video_id(video.id)
             if transcript and transcript.status == "completed" and not include_existing:
+                logger.debug(
+                    "transcript.video.cached video_id=%s youtube_video_id=%s",
+                    video.id,
+                    video.youtube_video_id,
+                )
                 responses.append(self._serialize_transcript(transcript, include_text=include_text))
                 continue
 
+            logger.debug(
+                "transcript.video.fetch.start video_id=%s youtube_video_id=%s",
+                video.id,
+                video.youtube_video_id,
+            )
             result = await self._fetch_and_store(video.id, force=include_existing)
             responses.append(
                 self._serialize_transcript(result.transcript, include_text=include_text)
             )
             if result.transcript.status == "completed" and result.created_or_updated:
                 fetched_count += 1
+                logger.debug(
+                    "transcript.video.fetch.completed video_id=%s source=%s language=%s",
+                    video.id,
+                    result.transcript.source,
+                    result.transcript.language,
+                )
             if result.transcript.status == "failed":
                 failed_count += 1
+                logger.debug(
+                    "transcript.video.fetch.failed video_id=%s error=%s",
+                    video.id,
+                    result.transcript.error_message,
+                )
 
         await set_job_status(job_id=job_id, status="completed")
+        logger.debug(
+            "transcript.channel.completed channel_id=%s processed=%s fetched=%s failed=%s",
+            channel_id,
+            len(videos),
+            fetched_count,
+            failed_count,
+        )
         return ChannelTranscriptSyncResponse(
             job_id=job_id,
             channel_id=channel_id,
@@ -84,10 +121,16 @@ class TranscriptService:
         force: bool = False,
         include_text: bool = False,
     ) -> TranscriptRefreshResponse:
+        logger.debug("transcript.single.start video_id=%s force=%s", video_id, force)
         job_id = await create_job(job_namespace="transcripts", resource_id=str(video_id))
         await set_job_status(job_id=job_id, status="processing")
         result = await self._fetch_and_store(str(video_id), force=force)
         await set_job_status(job_id=job_id, status="completed")
+        logger.debug(
+            "transcript.single.completed video_id=%s status=%s",
+            video_id,
+            result.transcript.status,
+        )
         return TranscriptRefreshResponse(
             job_id=job_id,
             transcript=self._serialize_transcript(result.transcript, include_text=include_text),
@@ -139,12 +182,12 @@ class TranscriptService:
             transcript.chunk_count = len(chunks)
             transcript.status = "completed"
             transcript.error_message = None
-            transcript.fetched_at = datetime.now(timezone.utc)
+            transcript.fetched_at = datetime.now(UTC)
             video.transcript_status = "completed"
         except TranscriptProviderError as exc:
             transcript.status = "failed"
             transcript.error_message = str(exc)
-            transcript.fetched_at = datetime.now(timezone.utc)
+            transcript.fetched_at = datetime.now(UTC)
             video.transcript_status = "failed"
 
         await self.session.commit()
