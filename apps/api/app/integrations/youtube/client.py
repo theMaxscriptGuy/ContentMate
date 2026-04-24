@@ -1,7 +1,9 @@
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+from urllib.request import urlopen
 
 import yt_dlp
 
@@ -114,7 +116,11 @@ class YouTubeClient:
         self,
         video_url: str,
     ) -> tuple[YouTubeChannelPayload, YouTubeVideoPayload]:
-        info = self._extract_video_info(video_url=video_url)
+        try:
+            info = self._extract_video_info(video_url=video_url)
+        except YouTubeApiError:
+            return self._build_video_payloads_from_oembed(video_url)
+
         channel = self._build_channel_payload_from_video_info(info=info)
         video = self._build_video_payload_from_video_info(info=info)
         return channel, video
@@ -216,6 +222,90 @@ class YouTubeClient:
         if not info or not info.get("id"):
             raise YouTubeApiError("yt-dlp response did not include a video id.")
         return info
+
+    def _build_video_payloads_from_oembed(
+        self,
+        video_url: str,
+    ) -> tuple[YouTubeChannelPayload, YouTubeVideoPayload]:
+        video_id = self._extract_video_reference(video_url)
+        oembed = self._fetch_oembed(video_url)
+
+        author_url = str(oembed.get("author_url") or "").strip()
+        channel_url = author_url or f"https://www.youtube.com/watch?v={video_id}"
+        channel_id = self._extract_channel_fallback_id(author_url, video_id)
+        channel_title = (
+            str(oembed.get("author_name") or "Unknown Channel").strip() or "Unknown Channel"
+        )
+        video_title = str(oembed.get("title") or f"YouTube Video {video_id}").strip()
+        thumbnail_url = str(oembed.get("thumbnail_url") or "").strip() or None
+        is_short = "/shorts/" in video_url.lower()
+
+        channel = YouTubeChannelPayload(
+            youtube_channel_id=channel_id,
+            channel_url=channel_url,
+            title=channel_title,
+            description=None,
+            country=None,
+            default_language=None,
+            subscriber_count=None,
+            video_count=None,
+            thumbnail_url=thumbnail_url,
+        )
+        video = YouTubeVideoPayload(
+            youtube_video_id=video_id,
+            title=video_title,
+            description=None,
+            published_at=datetime.now(UTC),
+            thumbnail_url=thumbnail_url,
+            duration_seconds=None,
+            view_count=None,
+            like_count=None,
+            comment_count=None,
+            is_short=is_short,
+            is_stream=False,
+        )
+        return channel, video
+
+    def _fetch_oembed(self, video_url: str) -> dict[str, Any]:
+        oembed_url = f"https://www.youtube.com/oembed?url={video_url}&format=json"
+        try:
+            with urlopen(oembed_url, timeout=self.timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise YouTubeApiError(
+                "Could not inspect the video with yt-dlp or fetch lightweight public metadata."
+            ) from exc
+
+    def _extract_video_reference(self, video_url: str) -> str:
+        parsed = urlparse(video_url)
+        hostname = (parsed.hostname or "").lower()
+        path = parsed.path.strip("/")
+
+        if hostname == "youtu.be" and path:
+            return path.split("/", maxsplit=1)[0]
+
+        if path == "watch":
+            query = parse_qs(parsed.query)
+            video_id = (query.get("v") or [""])[0].strip()
+            if video_id:
+                return video_id
+
+        if path.startswith("shorts/"):
+            video_id = path.split("/", maxsplit=1)[1].strip()
+            if video_id:
+                return video_id
+
+        raise YouTubeApiError("Unsupported YouTube video URL format.")
+
+    def _extract_channel_fallback_id(self, author_url: str, video_id: str) -> str:
+        if not author_url:
+            return f"video-owner:{video_id}"
+
+        parsed = urlparse(author_url)
+        path = parsed.path.strip("/")
+        if path:
+            return path.replace("/", ":")
+        return f"video-owner:{video_id}"
 
     def _normalize_channel_base_url(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
