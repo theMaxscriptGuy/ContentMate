@@ -201,7 +201,8 @@ const PIPELINE_STAGES: ProgressStage[] = [
 ];
 
 export default function Home() {
-  const [channelUrl, setChannelUrl] = useState("https://www.youtube.com/@techwithvideep");
+  const [analysisTarget, setAnalysisTarget] = useState<"channel" | "video">("channel");
+  const [targetUrl, setTargetUrl] = useState("https://www.youtube.com/@techwithvideep");
   const [contentFilters, setContentFilters] = useState({
     videos: true,
     streams: false,
@@ -472,7 +473,8 @@ export default function Home() {
         throw new Error("This saved channel does not have analysis and ideas yet.");
       }
 
-      setChannelUrl(payload.channel.channel_url);
+      setAnalysisTarget("channel");
+      setTargetUrl(payload.channel.channel_url);
       setActiveStageIndex(PIPELINE_STAGES.length);
       setResult({
         job_id: `saved-${channelId}`,
@@ -503,7 +505,12 @@ export default function Home() {
 
   async function runPipeline(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!contentFilters.videos && !contentFilters.streams && !contentFilters.shorts) {
+    if (
+      analysisTarget === "channel" &&
+      !contentFilters.videos &&
+      !contentFilters.streams &&
+      !contentFilters.shorts
+    ) {
       setError("Select at least one content type to analyze.");
       return;
     }
@@ -524,21 +531,33 @@ export default function Home() {
     setResult(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/pipeline/run`, {
+      const isVideoRun = analysisTarget === "video";
+      const response = await fetch(
+        `${API_BASE_URL}${isVideoRun ? "/pipeline/run-video" : "/pipeline/run"}`,
+        {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          channel_url: channelUrl,
-          force_transcript_refresh: false,
-          force_ideas_refresh: true,
-          include_videos: contentFilters.videos,
-          include_streams: contentFilters.streams,
-          include_shorts: contentFilters.shorts
-        })
-      });
+          body: JSON.stringify(
+            isVideoRun
+              ? {
+                  video_url: targetUrl,
+                  force_transcript_refresh: false,
+                  force_ideas_refresh: true
+                }
+              : {
+                  channel_url: targetUrl,
+                  force_transcript_refresh: false,
+                  force_ideas_refresh: true,
+                  include_videos: contentFilters.videos,
+                  include_streams: contentFilters.streams,
+                  include_shorts: contentFilters.shorts
+                }
+          )
+        }
+      );
 
       const payload = await response.json();
       if (!response.ok) {
@@ -602,56 +621,95 @@ export default function Home() {
 
       <section className="hero">
         <div className="eyebrow">ContentMatePro Studio</div>
-        <h1>Turn a YouTube channel into a content strategy board.</h1>
+        <h1>Turn a YouTube channel or video into a content strategy board.</h1>
         <p>
-          Paste a channel URL. ContentMatePro pulls a long-form video, gets the transcript,
-          analyzes the creator style, and generates production-ready ideas.
+          Paste a YouTube channel or specific video URL. ContentMatePro runs an
+          agent workflow to turn it into analysis, strategy, and a practical plan.
         </p>
 
-        <form className="commandBar" onSubmit={runPipeline}>
-          <input
-            aria-label="YouTube channel URL"
-            onChange={(event) => setChannelUrl(event.target.value)}
-            placeholder="https://www.youtube.com/@channel"
-            type="url"
-            value={channelUrl}
-          />
-          <button disabled={isLoading || isAuthLoading} type="submit">
-            {isLoading ? "Analyzing..." : "Analyze Channel"}
-          </button>
-        </form>
         <div className="filterRow">
           <label className="filterOption">
             <input
-              checked={contentFilters.videos}
-              onChange={(event) =>
-                setContentFilters((current) => ({ ...current, videos: event.target.checked }))
-              }
-              type="checkbox"
+              checked={analysisTarget === "channel"}
+              onChange={() => {
+                setAnalysisTarget("channel");
+                setTargetUrl("https://www.youtube.com/@techwithvideep");
+              }}
+              type="radio"
             />
-            <span>Videos</span>
+            <span>Analyze Channel</span>
           </label>
           <label className="filterOption">
             <input
-              checked={contentFilters.streams}
-              onChange={(event) =>
-                setContentFilters((current) => ({ ...current, streams: event.target.checked }))
-              }
-              type="checkbox"
+              checked={analysisTarget === "video"}
+              onChange={() => {
+                setAnalysisTarget("video");
+                setTargetUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+              }}
+              type="radio"
             />
-            <span>Streams</span>
-          </label>
-          <label className="filterOption">
-            <input
-              checked={contentFilters.shorts}
-              onChange={(event) =>
-                setContentFilters((current) => ({ ...current, shorts: event.target.checked }))
-              }
-              type="checkbox"
-            />
-            <span>Shorts</span>
+            <span>Analyze Specific Video</span>
           </label>
         </div>
+        <form className="commandBar" onSubmit={runPipeline}>
+          <input
+            aria-label={analysisTarget === "channel" ? "YouTube channel URL" : "YouTube video URL"}
+            onChange={(event) => setTargetUrl(event.target.value)}
+            placeholder={
+              analysisTarget === "channel"
+                ? "https://www.youtube.com/@channel"
+                : "https://www.youtube.com/watch?v=VIDEO_ID"
+            }
+            type="url"
+            value={targetUrl}
+          />
+          <button disabled={isLoading || isAuthLoading} type="submit">
+            {isLoading
+              ? "Analyzing..."
+              : analysisTarget === "channel"
+                ? "Analyze Channel"
+                : "Analyze Video"}
+          </button>
+        </form>
+        {analysisTarget === "channel" ? (
+          <div className="filterRow">
+            <label className="filterOption">
+              <input
+                checked={contentFilters.videos}
+                onChange={(event) =>
+                  setContentFilters((current) => ({ ...current, videos: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              <span>Videos</span>
+            </label>
+            <label className="filterOption">
+              <input
+                checked={contentFilters.streams}
+                onChange={(event) =>
+                  setContentFilters((current) => ({ ...current, streams: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              <span>Streams</span>
+            </label>
+            <label className="filterOption">
+              <input
+                checked={contentFilters.shorts}
+                onChange={(event) =>
+                  setContentFilters((current) => ({ ...current, shorts: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              <span>Shorts</span>
+            </label>
+          </div>
+        ) : (
+          <p className="historyEmpty">
+            Specific video analysis focuses the agent workflow on one chosen video and
+            builds strategy ideas from that source.
+          </p>
+        )}
         {isLoginRequired && !user ? (
           <div className="loginPrompt">
             <strong>Google sign-in required</strong>

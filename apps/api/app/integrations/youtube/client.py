@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -110,6 +110,15 @@ class YouTubeClient:
         )
         return channel, selected_videos
 
+    async def fetch_video_with_channel(
+        self,
+        video_url: str,
+    ) -> tuple[YouTubeChannelPayload, YouTubeVideoPayload]:
+        info = self._extract_video_info(video_url=video_url)
+        channel = self._build_channel_payload_from_video_info(info=info)
+        video = self._build_video_payload_from_video_info(info=info)
+        return channel, video
+
     def _select_latest_uploaded_videos(
         self,
         videos: list[YouTubeVideoPayload],
@@ -189,6 +198,25 @@ class YouTubeClient:
         )
         return primary_info
 
+    def _extract_video_info(self, video_url: str) -> dict[str, Any]:
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "logger": _YtDlpQuietLogger(),
+            "skip_download": True,
+            "socket_timeout": self.timeout,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(video_url, download=False)
+        except Exception as exc:
+            raise YouTubeApiError(f"yt-dlp could not inspect video: {exc}") from exc
+
+        if not info or not info.get("id"):
+            raise YouTubeApiError("yt-dlp response did not include a video id.")
+        return info
+
     def _normalize_channel_base_url(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
         if parsed.netloc and "youtube.com" not in parsed.netloc:
@@ -250,6 +278,39 @@ class YouTubeClient:
             thumbnail_url=thumbnail,
         )
 
+    def _build_channel_payload_from_video_info(
+        self,
+        info: dict[str, Any],
+    ) -> YouTubeChannelPayload:
+        channel_id = info.get("channel_id") or info.get("uploader_id")
+        if not channel_id:
+            raise YouTubeApiError("yt-dlp response did not include a channel id for the video.")
+
+        thumbnails = info.get("channel_thumbnails") or info.get("thumbnails") or []
+        thumbnail = thumbnails[-1].get("url") if thumbnails else None
+        channel_url = (
+            info.get("channel_url")
+            or info.get("uploader_url")
+            or f"https://www.youtube.com/channel/{channel_id}"
+        )
+
+        return YouTubeChannelPayload(
+            youtube_channel_id=channel_id,
+            channel_url=channel_url,
+            title=(
+                info.get("channel")
+                or info.get("uploader")
+                or info.get("channel_id")
+                or "Unknown Channel"
+            ),
+            description=info.get("channel_description"),
+            country=None,
+            default_language=info.get("language"),
+            subscriber_count=_safe_int(info.get("channel_follower_count")),
+            video_count=None,
+            thumbnail_url=thumbnail,
+        )
+
     def _build_video_payloads(
         self,
         info: dict[str, Any],
@@ -291,6 +352,46 @@ class YouTubeClient:
             )
 
         return videos
+
+    def _build_video_payload_from_video_info(
+        self,
+        info: dict[str, Any],
+    ) -> YouTubeVideoPayload:
+        video_id = info.get("id")
+        if not video_id:
+            raise YouTubeApiError("yt-dlp response did not include a video id.")
+
+        thumbnails = info.get("thumbnails") or []
+        thumbnail = thumbnails[-1].get("url") if thumbnails else None
+        webpage_url = str(info.get("webpage_url") or "").lower()
+        content_type = _classify_entry_content_type(info)
+
+        if content_type is None:
+            if "/shorts/" in webpage_url:
+                content_type = "shorts"
+            elif str(info.get("live_status") or "").lower() in {
+                "is_live",
+                "post_live",
+                "was_live",
+                "is_upcoming",
+            }:
+                content_type = "streams"
+            else:
+                content_type = "videos"
+
+        return YouTubeVideoPayload(
+            youtube_video_id=video_id,
+            title=info.get("title") or "Untitled Video",
+            description=info.get("description"),
+            published_at=_parse_upload_date(info),
+            thumbnail_url=thumbnail,
+            duration_seconds=_safe_int(info.get("duration")),
+            view_count=_safe_int(info.get("view_count")),
+            like_count=_safe_int(info.get("like_count")),
+            comment_count=_safe_int(info.get("comment_count")),
+            is_short=content_type == "shorts",
+            is_stream=content_type == "streams",
+        )
 
     def _hydrate_video_payload(self, video: YouTubeVideoPayload) -> YouTubeVideoPayload:
         video_url = f"https://www.youtube.com/watch?v={video.youtube_video_id}"
@@ -383,20 +484,20 @@ def _parse_iso8601_duration(duration: str | None) -> int | None:
 def _parse_upload_date(entry: dict[str, Any]) -> datetime:
     timestamp = _safe_int(entry.get("timestamp"))
     if timestamp is not None:
-        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        return datetime.fromtimestamp(timestamp, tz=UTC)
 
     upload_date = entry.get("upload_date")
     if isinstance(upload_date, str):
         try:
-            return datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=timezone.utc)
+            return datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=UTC)
         except ValueError:
             pass
 
     release_timestamp = _safe_int(entry.get("release_timestamp"))
     if release_timestamp is not None:
-        return datetime.fromtimestamp(release_timestamp, tz=timezone.utc)
+        return datetime.fromtimestamp(release_timestamp, tz=UTC)
 
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _dedupe_entries(entries) -> list[dict[str, Any]]:

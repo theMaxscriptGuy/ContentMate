@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.auth import GoogleLoginRequest
-from app.schemas.pipeline import RunPipelineRequest
+from app.schemas.pipeline import RunPipelineRequest, RunVideoPipelineRequest
 
 
 @pytest.mark.parametrize(
@@ -53,3 +53,32 @@ def test_pipeline_request_requires_at_least_one_content_type() -> None:
             include_streams=False,
             include_shorts=False,
         )
+
+
+@pytest.mark.parametrize(
+    "video_url",
+    [
+        "https://www.youtube.com/watch?v=abc123",
+        "https://youtube.com/watch?v=abc123",
+        "https://youtu.be/abc123",
+        "https://www.youtube.com/shorts/abc123",
+    ],
+)
+def test_video_pipeline_request_accepts_supported_youtube_video_urls(video_url: str) -> None:
+    payload = RunVideoPipelineRequest(video_url=video_url)
+
+    assert str(payload.video_url).startswith("https://")
+
+
+@pytest.mark.parametrize(
+    "video_url",
+    [
+        "https://example.com/watch?v=abc123",
+        "https://www.youtube.com/@contentmate",
+        "https://www.youtube.com/playlist?list=abc",
+        "https://www.youtube.com/watch",
+    ],
+)
+def test_video_pipeline_request_rejects_non_video_urls(video_url: str) -> None:
+    with pytest.raises(ValidationError):
+        RunVideoPipelineRequest(video_url=video_url)

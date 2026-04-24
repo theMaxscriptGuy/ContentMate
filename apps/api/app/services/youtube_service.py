@@ -85,6 +85,32 @@ class YouTubeService:
             return None
         return await self.sync_channel_from_url(channel.channel_url, user_id=channel.user_id)
 
+    async def sync_video_from_url(
+        self,
+        video_url: str,
+        user_id: str | None = None,
+    ) -> ChannelSyncResult:
+        logger.debug("youtube.video_sync.start url=%s user_id=%s", video_url, user_id)
+        try:
+            channel_payload, video_payload = await self.client.fetch_video_with_channel(video_url)
+        except YouTubeApiError as exc:
+            raise ChannelNotFoundError(str(exc)) from exc
+
+        channel = await self._upsert_channel(channel_payload, user_id=user_id)
+        videos = await self._upsert_videos(channel_id=channel.id, videos_payload=[video_payload])
+        await self.session.commit()
+        await self.session.refresh(channel)
+        logger.debug(
+            "youtube.video_sync.completed channel_id=%s youtube_channel_id=%s video_id=%s",
+            channel.id,
+            channel.youtube_channel_id,
+            video_payload.youtube_video_id,
+        )
+        return ChannelSyncResult(
+            channel=ChannelSummary.model_validate(channel),
+            videos=[VideoSummary.model_validate(video) for video in videos],
+        )
+
     async def get_channel_with_videos(
         self, channel_id: UUID
     ) -> tuple[ChannelSummary | None, list[VideoSummary]]:

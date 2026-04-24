@@ -38,7 +38,9 @@ def _sample_titles(videos: list[AgentVideoEvidence], limit: int = 3) -> list[str
 
 
 class AgentWorkflowState(TypedDict, total=False):
+    source_kind: str
     channel_url: str
+    video_url: str
     user_id: str
     force_transcript_refresh: bool
     force_ideas_refresh: bool
@@ -46,6 +48,7 @@ class AgentWorkflowState(TypedDict, total=False):
     include_streams: bool
     include_shorts: bool
     channel_id: str
+    target_video_id: str
     channel_sync: ChannelSyncResponse
     transcript_sync: ChannelTranscriptSyncResponse
     evidence_package: AgentEvidencePackage
@@ -119,6 +122,7 @@ class AgentWorkflowService:
         )
         state = await self.graph.ainvoke(
             {
+                "source_kind": "channel",
                 "channel_url": channel_url,
                 "user_id": user_id,
                 "force_transcript_refresh": force_transcript_refresh,
@@ -128,7 +132,31 @@ class AgentWorkflowService:
                 "include_shorts": include_shorts,
             }
         )
+        return self._finalize_state(state)
 
+    async def run_video(
+        self,
+        video_url: str,
+        user_id: str,
+        force_transcript_refresh: bool = False,
+        force_ideas_refresh: bool = True,
+    ) -> RunPipelineResponse:
+        logger.debug("agent.workflow.start video_url=%s user_id=%s", video_url, user_id)
+        state = await self.graph.ainvoke(
+            {
+                "source_kind": "video",
+                "video_url": video_url,
+                "user_id": user_id,
+                "force_transcript_refresh": force_transcript_refresh,
+                "force_ideas_refresh": force_ideas_refresh,
+                "include_videos": True,
+                "include_streams": False,
+                "include_shorts": False,
+            }
+        )
+        return self._finalize_state(state)
+
+    def _finalize_state(self, state: AgentWorkflowState) -> RunPipelineResponse:
         channel_sync = state.get("channel_sync")
         transcript_sync = state.get("transcript_sync")
         analysis = state.get("analysis")
@@ -165,17 +193,27 @@ class AgentWorkflowService:
             analysis=analysis,
             ideas=ideas_response.ideas,
         )
-
     async def _sync_channel_node(self, state: AgentWorkflowState) -> AgentWorkflowState:
-        logger.debug("agent.workflow.node.sync_channel.start url=%s", state["channel_url"])
+        source_kind = state.get("source_kind", "channel")
+        logger.debug(
+            "agent.workflow.node.sync_channel.start source_kind=%s target=%s",
+            source_kind,
+            state.get("video_url") if source_kind == "video" else state.get("channel_url"),
+        )
         try:
-            sync_result = await self.youtube_service.sync_channel_from_url(
-                channel_url=state["channel_url"],
-                user_id=state["user_id"],
-                include_videos=state["include_videos"],
-                include_streams=state["include_streams"],
-                include_shorts=state["include_shorts"],
-            )
+            if source_kind == "video":
+                sync_result = await self.youtube_service.sync_video_from_url(
+                    video_url=state["video_url"],
+                    user_id=state["user_id"],
+                )
+            else:
+                sync_result = await self.youtube_service.sync_channel_from_url(
+                    channel_url=state["channel_url"],
+                    user_id=state["user_id"],
+                    include_videos=state["include_videos"],
+                    include_streams=state["include_streams"],
+                    include_shorts=state["include_shorts"],
+                )
         except ChannelNotFoundError as exc:
             raise AgentWorkflowError(str(exc)) from exc
 
@@ -188,7 +226,7 @@ class AgentWorkflowService:
             len(sync_result.videos),
             [video.title for video in sync_result.videos[:3]],
         )
-        return {
+        next_state: AgentWorkflowState = {
             "channel_id": str(sync_result.channel.id),
             "channel_sync": ChannelSyncResponse(
                 job_id=channel_job_id,
@@ -196,17 +234,35 @@ class AgentWorkflowService:
                 videos=sync_result.videos,
             ),
         }
+        if source_kind == "video" and sync_result.videos:
+            next_state["target_video_id"] = str(sync_result.videos[0].id)
+        return next_state
 
     async def _fetch_transcripts_node(self, state: AgentWorkflowState) -> AgentWorkflowState:
         logger.debug(
             "agent.workflow.node.fetch_transcripts.start channel_id=%s",
             state["channel_id"],
         )
-        transcript_sync = await self.transcript_service.fetch_transcripts_for_channel(
-            channel_id=UUID(state["channel_id"]),
-            include_existing=state["force_transcript_refresh"],
-            include_text=False,
-        )
+        if state.get("target_video_id"):
+            single = await self.transcript_service.fetch_transcript_for_video(
+                video_id=UUID(state["target_video_id"]),
+                force=state["force_transcript_refresh"],
+                include_text=False,
+            )
+            transcript_sync = ChannelTranscriptSyncResponse(
+                job_id=single.job_id,
+                channel_id=UUID(state["channel_id"]),
+                processed_videos=1,
+                fetched_transcripts=1 if single.transcript.status == "completed" else 0,
+                failed_transcripts=1 if single.transcript.status == "failed" else 0,
+                transcripts=[single.transcript],
+            )
+        else:
+            transcript_sync = await self.transcript_service.fetch_transcripts_for_channel(
+                channel_id=UUID(state["channel_id"]),
+                include_existing=state["force_transcript_refresh"],
+                include_text=False,
+            )
         logger.debug(
             "agent.workflow.node.fetch_transcripts.completed channel_id=%s fetched=%s failed=%s",
             state["channel_id"],
@@ -218,9 +274,13 @@ class AgentWorkflowService:
     async def _build_evidence_node(self, state: AgentWorkflowState) -> AgentWorkflowState:
         channel_sync = state["channel_sync"]
         logger.debug("agent.workflow.node.build_evidence.start channel_id=%s", state["channel_id"])
-        videos = await self.youtube_service.repository.list_active_videos_for_channel(
-            state["channel_id"]
-        )
+        if state.get("target_video_id"):
+            video = await self.transcript_service.repository.get_video(state["target_video_id"])
+            videos = [video] if video is not None else []
+        else:
+            videos = await self.youtube_service.repository.list_active_videos_for_channel(
+                state["channel_id"]
+            )
         transcript_rows: list[AgentTranscriptEvidence] = []
         joined_transcripts: list[str] = []
         analyzed_transcript_count = 0

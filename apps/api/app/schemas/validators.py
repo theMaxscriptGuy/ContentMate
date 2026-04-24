@@ -1,4 +1,4 @@
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from pydantic import HttpUrl
 
@@ -8,6 +8,8 @@ YOUTUBE_HOSTS = {
     "m.youtube.com",
     "music.youtube.com",
 }
+
+YOUTUBE_VIDEO_HOSTS = YOUTUBE_HOSTS | {"youtu.be"}
 
 
 def validate_youtube_channel_url(value: HttpUrl) -> HttpUrl:
@@ -29,4 +31,29 @@ def validate_youtube_channel_url(value: HttpUrl) -> HttpUrl:
 
     raise ValueError(
         "Use a YouTube channel URL, for example https://www.youtube.com/@channel."
+    )
+
+
+def validate_youtube_video_url(value: HttpUrl) -> HttpUrl:
+    parsed = urlparse(str(value))
+    hostname = (parsed.hostname or "").lower()
+    path = parsed.path.strip("/")
+
+    if hostname not in YOUTUBE_VIDEO_HOSTS:
+        raise ValueError("Only YouTube video URLs are supported.")
+
+    if hostname == "youtu.be" and path:
+        return value
+
+    query = parse_qs(parsed.query)
+    if path == "watch" and query.get("v"):
+        return value
+
+    if path.startswith("shorts/"):
+        video_id = path.split("/", maxsplit=1)[1]
+        if video_id:
+            return value
+
+    raise ValueError(
+        "Use a YouTube video URL, for example https://www.youtube.com/watch?v=VIDEO_ID."
     )

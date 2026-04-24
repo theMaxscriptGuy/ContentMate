@@ -85,3 +85,53 @@ class PipelineService:
             workflow_response.analysis.result.analyzed_transcript_count,
         )
         return workflow_response
+
+    async def run_video_pipeline(
+        self,
+        video_url: str,
+        user_id: str,
+        force_transcript_refresh: bool = False,
+        force_ideas_refresh: bool = True,
+    ) -> RunPipelineResponse:
+        logger.debug(
+            "pipeline.run.start video_url=%s user_id=%s "
+            "force_transcript_refresh=%s force_ideas_refresh=%s",
+            video_url,
+            user_id,
+            force_transcript_refresh,
+            force_ideas_refresh,
+        )
+        job_id = await create_job(job_namespace="pipeline", resource_id=video_url)
+        await set_job_status(job_id=job_id, status="processing")
+
+        try:
+            workflow_response = await self.agent_workflow_service.run_video(
+                video_url,
+                user_id=user_id,
+                force_transcript_refresh=force_transcript_refresh,
+                force_ideas_refresh=force_ideas_refresh,
+            )
+        except (
+            PipelineRunError,
+            AgentWorkflowError,
+            ChannelNotFoundError,
+            VideoNotFoundError,
+            ChannelAnalysisNotFoundError,
+            IdeasGenerationError,
+        ) as exc:
+            logger.exception("pipeline.run.failed job_id=%s video_url=%s", job_id, video_url)
+            await set_job_status(job_id=job_id, status="failed")
+            raise PipelineRunError(str(exc)) from exc
+
+        await set_job_status(job_id=job_id, status="completed")
+        workflow_response.job_id = job_id
+        logger.debug(
+            "pipeline.run.completed job_id=%s channel_id=%s "
+            "analyzed_videos=%s analyzed_transcripts=%s "
+            "token_usage=see agent.workflow.completed",
+            job_id,
+            workflow_response.channel_sync.channel.id,
+            workflow_response.analysis.result.analyzed_video_count,
+            workflow_response.analysis.result.analyzed_transcript_count,
+        )
+        return workflow_response
