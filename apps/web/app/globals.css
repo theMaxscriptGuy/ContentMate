@@ -796,6 +796,120 @@ input {
   z-index: 1;
 }
 
+.demoPanel {
+  animation: rise 650ms ease both;
+  background: rgba(255, 251, 242, 0.68);
+  border: 1px solid var(--line);
+  border-radius: 34px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 22px;
+  margin: 72px auto 0;
+  max-width: 1120px;
+  padding: 28px;
+  position: relative;
+  z-index: 1;
+}
+
+.demoHeader {
+  align-items: end;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+}
+
+.demoHeader .sectionLabel,
+.demoHeader h2,
+.demoHeader p {
+  margin: 0;
+}
+
+.demoHeader h2 {
+  font-size: clamp(2.1rem, 4.2vw, 3.8rem);
+  letter-spacing: -0.05em;
+  line-height: 0.95;
+  margin-top: 6px;
+}
+
+.demoHeader p {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  line-height: 1.7;
+}
+
+.demoCarousel {
+  display: grid;
+  gap: 20px;
+}
+
+.demoFrame {
+  aspect-ratio: 16 / 10;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  overflow: hidden;
+  position: relative;
+}
+
+.demoImage {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.demoMeta {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.demoMeta span {
+  color: var(--clay);
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.demoMeta strong {
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.demoMeta p {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  grid-column: 2 / 3;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.demoDots {
+  display: flex;
+  gap: 8px;
+  grid-column: 3 / 4;
+  grid-row: 1 / span 2;
+}
+
+.demoDots button {
+  background: rgba(111, 98, 85, 0.18);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  height: 10px;
+  padding: 0;
+  transition: transform 180ms ease, background 180ms ease, width 180ms ease;
+  width: 10px;
+}
+
+.demoDots button.active {
+  background: var(--ember);
+  width: 28px;
+}
+
 .emptyState h2 {
   color: var(--ink);
   font-size: 2.2rem;
@@ -1010,6 +1124,8 @@ input {
 
   .statusGrid,
   .dashboard,
+  .demoHeader,
+  .demoMeta,
   .adminTableHead,
   .adminTableRow,
   .historyList,
@@ -1052,5 +1168,10 @@ input {
 
   .contactLinks {
     justify-content: flex-start;
+  }
+
+  .demoDots {
+    grid-column: auto;
+    grid-row: auto;
   }
 }

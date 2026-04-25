@@ -200,6 +200,49 @@ const PIPELINE_STAGES: ProgressStage[] = [
   }
 ];
 
+const DEMO_SLIDES = [
+  {
+    src: "/demo-carousel/1.png",
+    title: "Start with a channel or video",
+    detail: "Pick the analysis mode and paste the YouTube URL you want to work from."
+  },
+  {
+    src: "/demo-carousel/2.png",
+    title: "Set the input",
+    detail: "Use a channel handle or a specific video URL depending on the planning task."
+  },
+  {
+    src: "/demo-carousel/3.png",
+    title: "Watch the agent workflow",
+    detail: "Channel scan, strategy, long-form, short-form, and planner agents move the run forward."
+  },
+  {
+    src: "/demo-carousel/4.png",
+    title: "Track the progress state",
+    detail: "The workflow panel makes it easy to see which specialist is active right now."
+  },
+  {
+    src: "/demo-carousel/5.png",
+    title: "Get the strategic read",
+    detail: "See the channel context, the representative content item, and the high-level positioning."
+  },
+  {
+    src: "/demo-carousel/6.png",
+    title: "Review long-form opportunities",
+    detail: "Strengths, gaps, and higher-conviction video ideas are laid out in one board."
+  },
+  {
+    src: "/demo-carousel/7.png",
+    title: "Package shorts and thumbnails",
+    detail: "Short-form hooks and thumbnail angles come back as a separate creative layer."
+  },
+  {
+    src: "/demo-carousel/8.png",
+    title: "Leave with a concrete plan",
+    detail: "The final board ends in a practical four-week publishing plan."
+  }
+] as const;
+
 export default function Home() {
   const [analysisTarget, setAnalysisTarget] = useState<"channel" | "video">("channel");
   const [targetUrl, setTargetUrl] = useState("https://www.youtube.com/@techwithvideep");
@@ -222,6 +265,7 @@ export default function Home() {
   const [isRedeemingVoucher, setIsRedeemingVoucher] = useState(false);
   const [voucherMessage, setVoucherMessage] = useState<string | null>(null);
   const [activeStageIndex, setActiveStageIndex] = useState(0);
+  const [demoSlideIndex, setDemoSlideIndex] = useState(0);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const pendingAnalyzeRef = useRef(false);
   const loginWithGoogleRef = useRef<(credential: string) => Promise<void>>();
@@ -278,6 +322,18 @@ export default function Home() {
 
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [isLoading]);
+
+  useEffect(() => {
+    if (result || isLoading) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setDemoSlideIndex((current) => (current + 1) % DEMO_SLIDES.length);
+    }, 3200);
+
+    return () => window.clearInterval(interval);
+  }, [isLoading, result]);
 
   async function loginWithGoogle(credential: string) {
     setIsAuthLoading(true);
@@ -998,13 +1054,48 @@ export default function Home() {
             </div>
           </section>
         </div>
-      ) : (
-        <section className="emptyState">
-          <div className="orbit" />
-          <h2>Ready when you are.</h2>
-          <p>The first run can take a little while because it fetches video data, transcript, analysis, and ideas.</p>
+      ) : !user ? (
+        <section className="demoPanel">
+          <div className="demoHeader">
+            <div>
+              <p className="sectionLabel">Product Walkthrough</p>
+              <h2>See the board before you run it.</h2>
+            </div>
+            <p>
+              A quick guided preview of the full ContentMatePro workflow, from input to
+              strategy to final publishing plan.
+            </p>
+          </div>
+          <div className="demoCarousel">
+            <div className="demoFrame">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt={DEMO_SLIDES[demoSlideIndex].title}
+                className="demoImage"
+                src={DEMO_SLIDES[demoSlideIndex].src}
+              />
+            </div>
+            <div className="demoMeta">
+              <span>
+                {String(demoSlideIndex + 1).padStart(2, "0")} / {String(DEMO_SLIDES.length).padStart(2, "0")}
+              </span>
+              <strong>{DEMO_SLIDES[demoSlideIndex].title}</strong>
+              <p>{DEMO_SLIDES[demoSlideIndex].detail}</p>
+              <div className="demoDots">
+                {DEMO_SLIDES.map((slide, index) => (
+                  <button
+                    aria-label={`Show demo slide ${index + 1}: ${slide.title}`}
+                    className={index === demoSlideIndex ? "active" : ""}
+                    key={slide.src}
+                    onClick={() => setDemoSlideIndex(index)}
+                    type="button"
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </section>
-      )}
+      ) : null}
 
       <footer className="contactPanel">
         <div>
