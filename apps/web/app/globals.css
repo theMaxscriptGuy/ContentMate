@@ -370,6 +370,10 @@ input {
   padding: 18px;
 }
 
+.historyPanel {
+  margin-top: 18px;
+}
+
 .accessMeta {
   min-width: 0;
 }
