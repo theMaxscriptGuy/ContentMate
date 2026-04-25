@@ -474,19 +474,27 @@ class AgentWorkflowService:
 
     @staticmethod
     def _build_joined_text(videos, transcript_rows, joined_transcripts: list[str]) -> str:
-        if joined_transcripts:
-            return "\n\n".join(joined_transcripts)
-
         transcript_by_video_id = {item.video_id: item for item in transcript_rows}
-        metadata_lines = []
+        evidence_blocks: list[str] = []
         for video in videos:
-            if (
-                video.id in transcript_by_video_id
-                and transcript_by_video_id[video.id].status == "completed"
-            ):
-                continue
             parts = [video.title or ""]
             if video.description:
                 parts.append(video.description)
-            metadata_lines.append(" ".join(part.strip() for part in parts if part.strip()))
-        return "\n\n".join(line for line in metadata_lines if line)
+            metadata_text = " ".join(part.strip() for part in parts if part.strip())
+
+            transcript_text = None
+            transcript = transcript_by_video_id.get(video.id)
+            if transcript and transcript.status == "completed":
+                transcript_text = transcript.cleaned_text
+
+            block_parts = [metadata_text] if metadata_text else []
+            if transcript_text:
+                block_parts.append(transcript_text)
+
+            if block_parts:
+                evidence_blocks.append("\n\n".join(block_parts))
+
+        if evidence_blocks:
+            return "\n\n".join(evidence_blocks)
+
+        return "\n\n".join(joined_transcripts)

@@ -190,6 +190,17 @@ class OpenAIIdeasClient:
         current_year = datetime.now(UTC).year
         region_label = country_hint or "global"
         trend_block = trend_context or "No live trend snapshot was available for this run."
+        sparse_channel = (
+            analysis.analyzed_video_count <= 5 or analysis.transcript_coverage_ratio < 0.35
+        )
+        evidence_guidance = (
+            "- This is a sparse-signal or recently started channel. Keep ideas adjacent to what is already visible on the channel.\n"
+            "- For sparse channels, prefer small, testable concept variations over big format pivots or fully mature channel strategies.\n"
+            "- For sparse channels, avoid inventing advanced audience sophistication or broad brand authority that the evidence does not support.\n"
+            "- For sparse channels, make recommendations feel realistic for an early creator trying to discover what resonates."
+            if sparse_channel
+            else "- The channel has enough evidence for more developed recommendations, but keep them grounded in the supplied analysis."
+        )
         return f"""
 Generate actionable content ideas for this YouTube channel.
 
@@ -202,7 +213,10 @@ Rules:
   unless the idea is explicitly a retrospective or historical comparison.
 - Use current trend context from {region_label} only when it genuinely fits the channel niche.
 - Do not force unrelated trends into ideas just because they are currently popular.
+- Keep recommendations consistent with the creator profile and current channel maturity.
+- For early or sparse channels, bias toward adjacent experiments that can teach the creator what works next.
 - Return only data that fits the provided schema.
+{evidence_guidance}
 
 Channel: {channel_title}
 Country/region hint: {region_label}

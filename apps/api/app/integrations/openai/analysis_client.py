@@ -97,18 +97,34 @@ class OpenAIAnalysisClient:
         analyzed_video_count: int,
         analyzed_transcript_count: int,
     ) -> str:
+        sparse_channel = analyzed_video_count <= 5 or transcript_coverage_ratio < 0.35
+        evidence_guidance = (
+            "- This is a sparse-signal or early-stage channel. Be careful, modest, and explicit about uncertainty.\n"
+            "- For sparse channels, describe the niche as an emerging direction or current content lane when needed, not a locked-in brand identity.\n"
+            "- For sparse channels, infer the audience conservatively from current topics and packaging, not from imagined future scale.\n"
+            "- For sparse channels, make the creator profile about observable tendencies in topic choice, tone, and packaging style.\n"
+            "- For sparse channels, avoid pretending there is a proven repeatable format if the evidence does not show one."
+            if sparse_channel
+            else "- This channel has enough evidence to form more confident strategic observations, but still stay grounded in the supplied material."
+        )
         return f"""
 Analyze this YouTube channel using the provided video metadata and transcript text when available.
 
 Rules:
 - Base claims only on the supplied transcript text and metadata.
+- Build a creator profile/persona that reflects how this creator tends to package and deliver content.
+- If the channel evidence is sparse, recent, or limited, stay conservative.
+- For sparse channels, avoid overconfident niche claims and avoid assuming a mature audience profile.
+- For sparse channels, frame strengths as signals or tendencies, not established truths.
 - If transcript coverage is 0, clearly infer from titles/descriptions only and reflect that
   limitation in strengths or gaps.
 - Prefer semantic themes over raw repeated words.
 - Topics should be concise phrases, not filler words.
 - Mention counts may be approximate but should reflect transcript prominence.
 - Strengths and gaps should be actionable for the creator.
+- The creator profile should feel specific to this channel, not like a generic niche summary.
 - Return only data that fits the provided schema.
+{evidence_guidance}
 
 Channel: {channel_title}
 Transcript coverage ratio: {transcript_coverage_ratio}

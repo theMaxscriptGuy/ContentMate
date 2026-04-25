@@ -14,8 +14,18 @@ class TopicInsight(BaseModel):
     mentions: int
 
 
+class CreatorProfile(BaseModel):
+    creator_archetype: str
+    content_style: str
+    tone_profile: str
+    audience_profile: str
+    packaging_style: str
+    growth_direction: str
+
+
 class ChannelAnalysisPayload(BaseModel):
     niche: str
+    creator_profile: CreatorProfile | None = None
     primary_topics: list[TopicInsight]
     secondary_topics: list[TopicInsight]
     tone: str

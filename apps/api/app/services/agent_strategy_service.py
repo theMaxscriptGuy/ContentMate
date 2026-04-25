@@ -8,7 +8,12 @@ from app.db.models.generated_content import GeneratedContent
 from app.integrations.openai.analysis_client import OpenAIAnalysisClient, OpenAIAnalysisError
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.agent_workflow import AgentEvidencePackage
-from app.schemas.analysis import ChannelAnalysisPayload, ChannelAnalysisResponse, TopicInsight
+from app.schemas.analysis import (
+    ChannelAnalysisPayload,
+    ChannelAnalysisResponse,
+    CreatorProfile,
+    TopicInsight,
+)
 from app.schemas.openai_usage import OpenAIUsage
 from app.utils.text import (
     build_topic_insights,
@@ -151,6 +156,7 @@ class AgentStrategyService:
 
         return ChannelAnalysisPayload(
             niche=detect_niche(topic_counter, joined_text),
+            creator_profile=self._build_creator_profile(evidence, titles, joined_text),
             primary_topics=[
                 TopicInsight(topic=topic, mentions=count) for topic, count in primary_topics
             ],
@@ -165,4 +171,57 @@ class AgentStrategyService:
             transcript_coverage_ratio=evidence.workflow_meta.transcript_coverage_ratio,
             analyzed_video_count=evidence.workflow_meta.analyzed_video_count,
             analyzed_transcript_count=evidence.workflow_meta.analyzed_transcript_count,
+        )
+
+    @staticmethod
+    def _build_creator_profile(
+        evidence: AgentEvidencePackage,
+        titles: list[str],
+        joined_text: str,
+    ) -> CreatorProfile:
+        title_text = " ".join(titles).lower()
+        body_text = joined_text.lower()
+        combined = f"{title_text} {body_text}".strip()
+
+        if any(word in combined for word in ["funny", "reaction", "fails", "glitch", "challenge"]):
+            archetype = "Entertainment-led personality host"
+            content_style = "High-energy, moment-driven content built around reactions, spectacle, or shareable moments."
+            packaging_style = "Bold, curiosity-led packaging with punchy hooks and fast emotional payoff."
+        elif any(word in combined for word in ["guide", "tutorial", "how to", "explained", "tips"]):
+            archetype = "Teacher-operator"
+            content_style = "Practical, instructional content that wins by clarity, structure, and useful takeaways."
+            packaging_style = "Benefit-led packaging that promises a clear transformation or tactical outcome."
+        elif any(word in combined for word in ["news", "update", "trend", "latest", "review"]):
+            archetype = "Trend translator"
+            content_style = "Topical, timely content that reacts to what is happening now and explains why it matters."
+            packaging_style = "Timely, relevance-heavy packaging that leans on urgency and topical curiosity."
+        else:
+            archetype = "Niche-focused creator"
+            content_style = "Consistent niche content built around recurring topics, recognizable framing, and audience familiarity."
+            packaging_style = "Clear, niche-specific packaging that balances familiarity with a fresh angle."
+
+        if any(word in combined for word in ["funny", "crazy", "insane", "epic", "hilarious"]):
+            tone_profile = "Expressive, entertaining, and punchy."
+        elif any(word in combined for word in ["guide", "tutorial", "learn", "explained", "strategy"]):
+            tone_profile = "Helpful, instructive, and confidence-building."
+        else:
+            tone_profile = "Accessible, creator-led, and easy to follow."
+
+        audience_profile = (
+            f"{evidence.workflow_meta.analysis_mode.capitalize()} audience fit suggests viewers come for "
+            f"{detect_niche(extract_candidate_topics(joined_text), joined_text).lower()} content delivered in this creator's style."
+        )
+
+        growth_direction = (
+            "Double down on formats that already match the creator's natural delivery style, "
+            "while making packaging more repeatable and recognizably theirs."
+        )
+
+        return CreatorProfile(
+            creator_archetype=archetype,
+            content_style=content_style,
+            tone_profile=tone_profile,
+            audience_profile=audience_profile,
+            packaging_style=packaging_style,
+            growth_direction=growth_direction,
         )

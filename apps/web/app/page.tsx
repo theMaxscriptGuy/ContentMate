@@ -26,6 +26,14 @@ type VideoSummary = {
 
 type AnalysisResult = {
   niche: string;
+  creator_profile?: {
+    creator_archetype: string;
+    content_style: string;
+    tone_profile: string;
+    audience_profile: string;
+    packaging_style: string;
+    growth_direction: string;
+  } | null;
   primary_topics: TopicInsight[];
   secondary_topics: TopicInsight[];
   tone: string;
@@ -1003,6 +1011,32 @@ export default function Home() {
               ))}
             </div>
           </section>
+
+          {result.analysis.result.creator_profile ? (
+            <section className="panel widePanel">
+              <p className="sectionLabel">Creator Profile</p>
+              <h2>{result.analysis.result.creator_profile.creator_archetype}</h2>
+              <p className="muted">{result.analysis.result.creator_profile.content_style}</p>
+              <div className="ideaGrid">
+                <article className="compactItem">
+                  <strong>Tone</strong>
+                  <span>{result.analysis.result.creator_profile.tone_profile}</span>
+                </article>
+                <article className="compactItem">
+                  <strong>Audience Fit</strong>
+                  <span>{result.analysis.result.creator_profile.audience_profile}</span>
+                </article>
+                <article className="compactItem">
+                  <strong>Packaging Style</strong>
+                  <span>{result.analysis.result.creator_profile.packaging_style}</span>
+                </article>
+                <article className="compactItem">
+                  <strong>Growth Direction</strong>
+                  <span>{result.analysis.result.creator_profile.growth_direction}</span>
+                </article>
+              </div>
+            </section>
+          ) : null}
 
           <ListPanel
             eyebrow="Strengths"

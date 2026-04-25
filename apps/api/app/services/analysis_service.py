@@ -10,6 +10,7 @@ from app.repositories.generated_content_repository import GeneratedContentReposi
 from app.schemas.analysis import (
     ChannelAnalysisPayload,
     ChannelAnalysisResponse,
+    CreatorProfile,
     RunChannelAnalysisResponse,
     TopicInsight,
 )
@@ -164,6 +165,7 @@ class AnalysisService:
 
         return ChannelAnalysisPayload(
             niche=detect_niche(topic_counter, joined_text),
+            creator_profile=self._build_creator_profile(titles, joined_text),
             primary_topics=[
                 TopicInsight(topic=topic, mentions=count) for topic, count in primary_topics
             ],
@@ -178,6 +180,39 @@ class AnalysisService:
             transcript_coverage_ratio=transcript_coverage_ratio,
             analyzed_video_count=analyzed_video_count,
             analyzed_transcript_count=analyzed_transcript_count,
+        )
+
+    @staticmethod
+    def _build_creator_profile(titles: list[str], joined_text: str) -> CreatorProfile:
+        combined = f"{' '.join(titles)} {joined_text}".lower()
+
+        if any(word in combined for word in ["funny", "reaction", "challenge", "fails", "epic"]):
+            return CreatorProfile(
+                creator_archetype="Entertainment-led personality host",
+                content_style="Personality-forward content built around moments, reactions, and shareable entertainment.",
+                tone_profile="Energetic, expressive, and built for quick viewer payoff.",
+                audience_profile="Viewers looking for entertaining, easy-to-consume content with strong personality signals.",
+                packaging_style="Curiosity-heavy packaging with bold phrasing and emotional hooks.",
+                growth_direction="Lean into repeatable formats that amplify personality while making the packaging instantly recognizable.",
+            )
+
+        if any(word in combined for word in ["guide", "tutorial", "strategy", "explained", "tips"]):
+            return CreatorProfile(
+                creator_archetype="Teacher-operator",
+                content_style="Structured, useful content designed to teach, explain, or help viewers improve.",
+                tone_profile="Clear, practical, and confidence-building.",
+                audience_profile="Viewers who want actionable help, clearer understanding, or step-by-step guidance.",
+                packaging_style="Outcome-led packaging that promises a concrete win or learning result.",
+                growth_direction="Package expertise more aggressively while keeping the creator's clarity and trust intact.",
+            )
+
+        return CreatorProfile(
+            creator_archetype="Niche-focused creator",
+            content_style="Consistent niche content shaped by recurring themes and recognizable creator preferences.",
+            tone_profile="Accessible and creator-led with room to sharpen differentiation.",
+            audience_profile="Viewers who return for familiar subject matter delivered in this creator's style.",
+            packaging_style="Clear niche framing with room for more distinct hooks and stronger visual positioning.",
+            growth_direction="Clarify the creator's recurring format strengths and turn them into a more repeatable content identity.",
         )
 
     async def get_channel_analysis(self, channel_id: UUID) -> ChannelAnalysisResponse | None:
