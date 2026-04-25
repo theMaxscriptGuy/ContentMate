@@ -289,9 +289,12 @@ export default function Home() {
   const transcript = result?.transcript_sync.transcripts[0];
   const transcriptCoverage = result?.analysis.result.transcript_coverage_ratio ?? 0;
   const analyzedVideoCount = result?.analysis.result.analyzed_video_count ?? 0;
+  const analyzedTranscriptCount = result?.analysis.result.analyzed_transcript_count ?? 0;
+  const syncedVideoCount = result?.channel_sync.videos.length ?? 0;
   const analyzedVideosLabel =
     analyzedVideoCount === 1 ? "Analyzed Video Set" : "Analyzed Videos";
-  const usedMetadataFallback = transcriptCoverage === 0 && analyzedVideoCount > 0;
+  const hasDetailedRead = analyzedTranscriptCount > 0;
+  const usedMetadataFallback = !hasDetailedRead;
   const topicChips = useMemo(() => {
     const topics = result?.analysis.result.primary_topics ?? [];
     return topics.slice(0, 6);
@@ -958,7 +961,7 @@ export default function Home() {
             </p>
             <div className="metricRow">
               <span>{result.analysis.result.analyzed_video_count} videos analyzed</span>
-              <span>{result.analysis.result.analyzed_transcript_count} detailed reads completed</span>
+              <span>{analyzedTranscriptCount} detailed reads completed</span>
               <span>{result.transcript_sync.failed_transcripts} items skipped</span>
             </div>
           </section>
@@ -983,15 +986,23 @@ export default function Home() {
 
           {selectedVideo ? (
             <section className="panel videoPanel">
-              <p className="sectionLabel">{analyzedVideosLabel}</p>
+              <p className="sectionLabel">
+                {analyzedVideoCount > 0 ? analyzedVideosLabel : "Representative Video"}
+              </p>
               <h2>{selectedVideo.title}</h2>
               <p className="muted">
                 {analyzedVideoCount > 1
                   ? `${analyzedVideoCount} videos contributed to this analysis. This card shows the most recent representative video from that set.`
-                  : "This run analyzed one video for the final result."}
+                  : analyzedVideoCount === 1
+                    ? "This run analyzed one video for the final result."
+                    : "This card shows the most recent synced video from the channel surface for context."}
               </p>
               <div className="metricRow">
-                <span>{analyzedVideoCount} analyzed</span>
+                <span>
+                  {analyzedVideoCount > 0
+                    ? `${analyzedVideoCount} analyzed`
+                    : `${syncedVideoCount} synced`}
+                </span>
                 <span>{formatDuration(selectedVideo.duration_seconds)}</span>
                 <span>{formatNumber(selectedVideo.view_count)} views</span>
                 <span>{selectedVideo.transcript_status}</span>
