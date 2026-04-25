@@ -591,7 +591,6 @@ export default function Home() {
         </div>
         <div className="topActions">
           <div className="contactLinks compact">
-            <a href="tel:+919175477740">+91-9175477740</a>
             <a href="mailto:create@contentmatepro.com">create@contentmatepro.com</a>
           </div>
           <div className="authDock">
@@ -719,35 +718,6 @@ export default function Home() {
         {error ? <div className="errorCard">{error}</div> : null}
       </section>
 
-      <section className="statusGrid">
-        <StatusCard
-          label="Channel Scan"
-          state={stageState(0, isLoading, result, activeStageIndex)}
-        />
-        <StatusCard
-          label="Strategy Agent"
-          state={stageState(1, isLoading, result, activeStageIndex)}
-        />
-        <StatusCard
-          label="Agent Workflow"
-          state={stageState(3, isLoading, result, activeStageIndex)}
-        />
-        <StatusCard
-          label="Free Runs"
-          state={
-            usage
-              ? usage.unlimited_access
-                ? "Unlimited"
-                : `${usage.analyses_remaining_today}/${usage.daily_analysis_limit} left today`
-              : "Login required"
-          }
-        />
-        <StatusCard
-          label="Credits"
-          state={usage ? `${usage.analysis_credit_balance} available` : "Login required"}
-        />
-      </section>
-
       {user ? (
         <section className="historyPanel">
           <div className="historyHeader">
@@ -788,6 +758,35 @@ export default function Home() {
           )}
         </section>
       ) : null}
+
+      <section className="statusGrid">
+        <StatusCard
+          label="Channel Scan"
+          state={stageState(0, isLoading, result, activeStageIndex)}
+        />
+        <StatusCard
+          label="Strategy Agent"
+          state={stageState(1, isLoading, result, activeStageIndex)}
+        />
+        <StatusCard
+          label="Agent Workflow"
+          state={stageState(3, isLoading, result, activeStageIndex)}
+        />
+        <StatusCard
+          label="Free Runs"
+          state={
+            usage
+              ? usage.unlimited_access
+                ? "Unlimited"
+                : `${usage.analyses_remaining_today}/${usage.daily_analysis_limit} left today`
+              : "Login required"
+          }
+        />
+        <StatusCard
+          label="Credits"
+          state={usage ? `${usage.analysis_credit_balance} available` : "Login required"}
+        />
+      </section>
 
       {(isLoading || result) && (
         <section className="progressPanel">
@@ -1008,16 +1007,11 @@ export default function Home() {
           <span>Capstone project</span>
         </div>
         <div className="contactLinks">
-          <a href="tel:+919175477740">+91-9175477740</a>
           <a href="mailto:create@contentmatepro.com">create@contentmatepro.com</a>
           <a href="https://www.instagram.com/contentmatepro/" rel="noreferrer" target="_blank">
             Instagram
           </a>
-          <a
-            href="https://www.linkedin.com/company/contentmatepro/"
-            rel="noreferrer"
-            target="_blank"
-          >
+          <a href="https://www.linkedin.com/in/videep/" rel="noreferrer" target="_blank">
             LinkedIn
           </a>
           <a href="/privacy">Privacy</a>
