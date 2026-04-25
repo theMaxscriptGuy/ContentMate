@@ -64,8 +64,12 @@ class OpenAIIdeasClient:
                 "Task:\n"
                 "- Produce strong long-form YouTube video ideas.\n"
                 "- Video ideas should feel publishable soon, not vague brainstorm notes.\n"
+                "- For each video idea, include packaging help with 3 distinct title options, "
+                "1 thumbnail concept, 1 thumbnail text overlay, 1 opening hook, and a short "
+                "packaging rationale.\n"
                 "- Title hooks should complement the video ideas, not repeat them mechanically.\n"
                 "- Thumbnail angles should be visual and specific.\n"
+                "- Packaging suggestions should feel tailored to the specific idea, not generic.\n"
                 "- Return only schema-compliant data."
             ),
         )

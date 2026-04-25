@@ -43,6 +43,13 @@ type VideoIdea = {
   premise: string;
   why_it_fits: string;
   target_viewer: string;
+  packaging?: {
+    title_options: string[];
+    thumbnail_concept: string;
+    thumbnail_text: string;
+    hook_line: string;
+    packaging_rationale: string;
+  } | null;
 };
 
 type ShortIdea = {
@@ -1016,6 +1023,30 @@ export default function Home() {
                   <h3>{idea.title}</h3>
                   <p>{idea.premise}</p>
                   <small>{idea.why_it_fits}</small>
+                  {idea.packaging ? (
+                    <div className="packagingBlock">
+                      <div className="packagingSection">
+                        <span className="sectionLabel">Title Options</span>
+                        <ul className="packagingList">
+                          {idea.packaging.title_options.map((titleOption) => (
+                            <li key={titleOption}>{titleOption}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="packagingGrid">
+                        <article className="packagingItem">
+                          <span className="sectionLabel">Hook</span>
+                          <strong>{idea.packaging.hook_line}</strong>
+                        </article>
+                        <article className="packagingItem">
+                          <span className="sectionLabel">Thumbnail</span>
+                          <strong>{idea.packaging.thumbnail_concept}</strong>
+                          <small>{idea.packaging.thumbnail_text}</small>
+                        </article>
+                      </div>
+                      <p className="packagingRationale">{idea.packaging.packaging_rationale}</p>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

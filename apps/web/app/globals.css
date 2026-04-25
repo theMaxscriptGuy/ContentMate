@@ -776,24 +776,65 @@ input {
   margin-top: 12px;
 }
 
+.packagingBlock {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.packagingSection {
+  display: grid;
+  gap: 10px;
+}
+
+.packagingList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.packagingList li {
+  background: rgba(47, 111, 95, 0.08);
+  border-radius: 16px;
+  list-style: none;
+  padding: 12px 14px;
+}
+
+.packagingGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.packagingItem {
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.packagingItem small,
+.packagingRationale {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  line-height: 1.6;
+}
+
+.packagingRationale {
+  margin: 0;
+}
+
 .calendarItem span {
   color: var(--clay);
   font-family: "Courier New", monospace;
   font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-}
-
-.emptyState {
-  align-items: center;
-  color: var(--muted);
-  display: grid;
-  justify-items: center;
-  margin: 86px auto 0;
-  max-width: 520px;
-  position: relative;
-  text-align: center;
-  z-index: 1;
 }
 
 .demoPanel {
@@ -908,13 +949,6 @@ input {
 .demoDots button.active {
   background: var(--ember);
   width: 28px;
-}
-
-.emptyState h2 {
-  color: var(--ink);
-  font-size: 2.2rem;
-  letter-spacing: -0.05em;
-  margin: 20px 0 0;
 }
 
 .contactPanel {
@@ -1047,26 +1081,6 @@ input {
   text-decoration: none;
 }
 
-.orbit {
-  animation: spin 8s linear infinite;
-  border: 2px dashed rgba(31, 26, 20, 0.32);
-  border-radius: 50%;
-  height: 110px;
-  position: relative;
-  width: 110px;
-}
-
-.orbit::after {
-  background: var(--ember);
-  border-radius: 50%;
-  content: "";
-  height: 18px;
-  position: absolute;
-  right: 5px;
-  top: 8px;
-  width: 18px;
-}
-
 @keyframes rise {
   from {
     opacity: 0;
@@ -1076,12 +1090,6 @@ input {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 
@@ -1131,7 +1139,8 @@ input {
   .historyList,
   .progressRail,
   .ideaGrid,
-  .calendarGrid {
+  .calendarGrid,
+  .packagingGrid {
     grid-template-columns: 1fr;
   }
 

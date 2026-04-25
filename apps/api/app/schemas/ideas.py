@@ -8,11 +8,20 @@ class GenerateIdeasRequest(BaseModel):
     force_refresh: bool = False
 
 
+class PackagingHelp(BaseModel):
+    title_options: list[str]
+    thumbnail_concept: str
+    thumbnail_text: str
+    hook_line: str
+    packaging_rationale: str
+
+
 class VideoIdea(BaseModel):
     title: str
     premise: str
     why_it_fits: str
     target_viewer: str
+    packaging: PackagingHelp | None = None
 
 
 class ShortIdea(BaseModel):
