@@ -720,38 +720,44 @@ export default function Home() {
 
       {user ? (
         <section className="historyPanel">
-          <div className="historyHeader">
-            <div>
-              <p className="sectionLabel">Access</p>
-              <h2>{usage?.unlimited_access ? "Unlimited access enabled" : "Access and credits"}</h2>
-            </div>
-          </div>
           {usage?.unlimited_access ? (
-            <p className="historyEmpty">
-              This account can run analyses without the daily counter being applied.
-            </p>
+            <div className="accessRow">
+              <div className="accessMeta">
+                <p className="sectionLabel">Access</p>
+                <h2>Unlimited access enabled</h2>
+              </div>
+              <p className="historyEmpty">
+                This account can run analyses without the daily counter being applied.
+              </p>
+            </div>
           ) : (
             <>
-              <p className="historyEmpty">
-                You get <strong>{usage?.daily_analysis_limit ?? 0} free analyses per day</strong>.
-                After that, each additional analysis uses <strong>1 credit</strong>. Current balance:{" "}
-                <strong>{usage?.analysis_credit_balance ?? 0}</strong>.
-              </p>
-              <div className="commandBar">
-                <input
-                  aria-label="Voucher code"
-                  onChange={(event) => setVoucherCode(event.target.value)}
-                  placeholder="Enter voucher code"
-                  type="text"
-                  value={voucherCode}
-                />
-                <button
-                  disabled={isRedeemingVoucher || !voucherCode.trim()}
-                  onClick={redeemVoucher}
-                  type="button"
-                >
-                  {isRedeemingVoucher ? "Applying..." : "Apply Code"}
-                </button>
+              <div className="accessRow">
+                <div className="accessMeta">
+                  <p className="sectionLabel">Access</p>
+                  <h2>Access and credits</h2>
+                </div>
+                <p className="historyEmpty">
+                  You get <strong>{usage?.daily_analysis_limit ?? 0} free analyses per day</strong>.
+                  After that, each additional analysis uses <strong>1 credit</strong>. Current balance:{" "}
+                  <strong>{usage?.analysis_credit_balance ?? 0}</strong>.
+                </p>
+                <div className="accessAction">
+                  <input
+                    aria-label="Voucher code"
+                    onChange={(event) => setVoucherCode(event.target.value)}
+                    placeholder="Enter voucher code"
+                    type="text"
+                    value={voucherCode}
+                  />
+                  <button
+                    disabled={isRedeemingVoucher || !voucherCode.trim()}
+                    onClick={redeemVoucher}
+                    type="button"
+                  >
+                    {isRedeemingVoucher ? "Applying..." : "Apply Code"}
+                  </button>
+                </div>
               </div>
               {voucherMessage ? <p className="historyEmpty">{voucherMessage}</p> : null}
             </>
