@@ -29,6 +29,7 @@ class AgentTranscriptEvidence(BaseModel):
 
 class AgentWorkflowMeta(BaseModel):
     platform: str = "youtube"
+    source_kind: str = "channel"
     analysis_mode: str
     transcript_coverage_ratio: float = Field(ge=0, le=1)
     analyzed_video_count: int = Field(ge=0)

@@ -318,6 +318,7 @@ class AgentWorkflowService:
             channel_title=channel_sync.channel.title,
             channel_description=channel_sync.channel.description,
             workflow_meta=AgentWorkflowMeta(
+                source_kind=state.get("source_kind", "channel"),
                 analysis_mode=analysis_mode,
                 transcript_coverage_ratio=round(analyzed_transcript_count / max(len(videos), 1), 2),
                 analyzed_video_count=len(videos),

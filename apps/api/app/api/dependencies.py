@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.db.models.user import User
 from app.db.session import get_db_session
 from app.repositories.user_repository import UserRepository
@@ -35,3 +36,20 @@ async def get_current_user(
             detail="Login required.",
         )
     return user
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    settings = get_settings()
+    admin_emails = {
+        email.strip().lower()
+        for email in settings.admin_emails.split(",")
+        if email.strip()
+    }
+    if current_user.email.lower() not in admin_emails:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required.",
+        )
+    return current_user

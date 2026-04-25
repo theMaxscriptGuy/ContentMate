@@ -110,6 +110,7 @@ class AgentStrategyService:
             prompt_input={
                 "workflow": "langgraph-agentic-v1",
                 "platform": evidence.workflow_meta.platform,
+                "source_kind": evidence.workflow_meta.source_kind,
                 "selected_content_types": evidence.workflow_meta.selected_content_types,
                 "transcript_coverage_ratio": evidence.workflow_meta.transcript_coverage_ratio,
                 "analyzed_video_count": evidence.workflow_meta.analyzed_video_count,

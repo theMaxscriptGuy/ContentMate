@@ -593,6 +593,82 @@ input {
   z-index: 1;
 }
 
+.adminHero {
+  margin-bottom: 24px;
+}
+
+.adminDashboard {
+  margin-top: 18px;
+}
+
+.adminPanel {
+  margin: 0 auto;
+  max-width: 1120px;
+}
+
+.adminStats {
+  margin-top: 0;
+}
+
+.adminTable {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.adminTableHead,
+.adminTableRow {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(180px, 1fr);
+}
+
+.adminTableHead {
+  color: var(--clay);
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.adminTableRow {
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 16px;
+}
+
+.adminTableRow span {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.adminTableRow strong,
+.adminTableRow small,
+.adminTableRow a {
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.adminTableRow small,
+.adminTableRow a {
+  color: var(--muted);
+  font-family: "Courier New", monospace;
+  font-size: 0.8rem;
+}
+
+.adminTableRow a {
+  text-decoration: none;
+}
+
+.adminTableRow a:hover {
+  color: var(--moss);
+}
+
 .panel {
   border-radius: 34px;
   padding: 28px;
@@ -934,6 +1010,8 @@ input {
 
   .statusGrid,
   .dashboard,
+  .adminTableHead,
+  .adminTableRow,
   .historyList,
   .progressRail,
   .ideaGrid,
