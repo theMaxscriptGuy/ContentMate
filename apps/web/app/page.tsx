@@ -161,6 +161,7 @@ type SavedChannelResponse = {
   videos: VideoSummary[];
   analysis: PipelineResponse["analysis"] | null;
   ideas: PipelineResponse["ideas"] | null;
+  is_stale?: boolean;
 };
 
 type ProgressStage = {
@@ -550,6 +551,11 @@ export default function Home() {
       const payload = (await response.json()) as SavedChannelResponse & { detail?: string };
       if (!response.ok) {
         throw new Error(payload.detail ?? "Could not open saved analysis");
+      }
+      if (payload.is_stale) {
+        throw new Error(
+          "This saved analysis is out of date for the channel's current videos. Run a fresh analysis to see current insights."
+        );
       }
       if (!payload.analysis || !payload.ideas) {
         throw new Error("This saved channel does not have analysis and ideas yet.");

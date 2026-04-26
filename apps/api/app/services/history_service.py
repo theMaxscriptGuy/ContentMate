@@ -69,12 +69,23 @@ class HistoryService:
             channel_id=channel.id,
             content_type="content_ideas",
         )
+        analysis_payload = ChannelAnalysisPayload.model_validate(analysis.result_json) if analysis and analysis.result_json else None
+        is_stale = False
+        if analysis and analysis_payload:
+            stale_by_sync_time = bool(
+                channel.last_synced_at
+                and analysis.created_at
+                and channel.last_synced_at > analysis.created_at
+            )
+            stale_by_video_mismatch = analysis_payload.analyzed_video_count == 0 and len(videos) > 0
+            is_stale = stale_by_sync_time or stale_by_video_mismatch
 
         return SavedChannelResponse(
             channel=ChannelSummary.model_validate(channel),
             videos=[VideoSummary.model_validate(video) for video in videos],
             analysis=_serialize_analysis(analysis) if analysis and analysis.result_json else None,
             ideas=_serialize_ideas(ideas) if ideas and ideas.result_json else None,
+            is_stale=is_stale,
         )
 
 

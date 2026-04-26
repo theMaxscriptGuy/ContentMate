@@ -24,6 +24,7 @@ class SavedChannelResponse(BaseModel):
     videos: list[VideoSummary]
     analysis: ChannelAnalysisResponse | None
     ideas: ContentIdeasResponse | None
+    is_stale: bool = False
 
 
 class SavedChannelListItem(BaseModel):
