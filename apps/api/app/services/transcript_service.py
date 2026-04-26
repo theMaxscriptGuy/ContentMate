@@ -115,6 +115,56 @@ class TranscriptService:
             transcripts=responses,
         )
 
+    async def fetch_transcripts_for_video_ids(
+        self,
+        channel_id: UUID,
+        video_ids: list[str],
+        include_existing: bool = False,
+        include_text: bool = False,
+    ) -> ChannelTranscriptSyncResponse:
+        logger.debug(
+            "transcript.channel.selected.start channel_id=%s include_existing=%s selected=%s",
+            channel_id,
+            include_existing,
+            len(video_ids),
+        )
+        job_id = await create_job(job_namespace="transcripts", resource_id=str(channel_id))
+        await set_job_status(job_id=job_id, status="processing")
+
+        responses: list[TranscriptResponse] = []
+        fetched_count = 0
+        failed_count = 0
+        videos = []
+        for video_id in video_ids:
+            video = await self.repository.get_video(video_id)
+            if video is not None:
+                videos.append(video)
+
+        for video in videos:
+            transcript = await self.repository.get_transcript_by_video_id(video.id)
+            if transcript and transcript.status == "completed" and not include_existing:
+                responses.append(self._serialize_transcript(transcript, include_text=include_text))
+                continue
+
+            result = await self._fetch_and_store(video.id, force=include_existing)
+            responses.append(
+                self._serialize_transcript(result.transcript, include_text=include_text)
+            )
+            if result.transcript.status == "completed" and result.created_or_updated:
+                fetched_count += 1
+            if result.transcript.status == "failed":
+                failed_count += 1
+
+        await set_job_status(job_id=job_id, status="completed")
+        return ChannelTranscriptSyncResponse(
+            job_id=job_id,
+            channel_id=channel_id,
+            processed_videos=len(videos),
+            fetched_transcripts=fetched_count,
+            failed_transcripts=failed_count,
+            transcripts=responses,
+        )
+
     async def fetch_transcript_for_video(
         self,
         video_id: UUID,

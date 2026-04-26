@@ -124,7 +124,7 @@ class YouTubeClient:
         videos = self._hydrate_video_payloads(videos)
         if include_streams:
             videos = self._hydrate_stream_payloads(videos)
-        selected_videos = self._select_top_ranked_videos(
+        selected_videos = self._select_segmented_top_videos(
             videos=videos,
             max_results=max_results,
         )
@@ -161,18 +161,24 @@ class YouTubeClient:
                 channel_info=channel_info,
                 channel_url=channel_url,
             )
+            uploads_playlist_id = (
+                ((channel_info.get("contentDetails") or {}).get("relatedPlaylists") or {}).get(
+                    "uploads"
+                )
+            )
+            if not uploads_playlist_id:
+                raise YouTubeApiError("YouTube API did not return the channel uploads playlist.")
 
-            candidate_limit = self.scan_limit or max(self.candidate_pool_size * 3, max_results)
-            candidate_limit = min(candidate_limit, 50)
-            search_items = await self._fetch_channel_search_items_from_api(
+            candidate_limit = self.scan_limit if self.scan_limit > 0 else None
+            playlist_items = await self._fetch_upload_playlist_items_from_api(
                 client=client,
-                channel_id=channel.youtube_channel_id,
-                max_results=candidate_limit,
+                uploads_playlist_id=uploads_playlist_id,
+                max_items=candidate_limit,
             )
             video_ids = [
-                item.get("id", {}).get("videoId")
-                for item in search_items
-                if item.get("id", {}).get("videoId")
+                item.get("contentDetails", {}).get("videoId")
+                for item in playlist_items
+                if item.get("contentDetails", {}).get("videoId")
             ]
             if not video_ids:
                 raise YouTubeApiError("YouTube API returned no channel videos.")
@@ -184,16 +190,33 @@ class YouTubeClient:
                 include_streams=include_streams,
                 include_shorts=include_shorts,
             )
-            selected_videos = self._select_top_ranked_videos(videos=videos, max_results=max_results)
+            selected_videos = self._select_segmented_top_videos(
+                videos=videos,
+                max_results=max_results,
+            )
             return channel, selected_videos
 
-    def _select_top_ranked_videos(
+    def _select_segmented_top_videos(
         self,
         videos: list[YouTubeVideoPayload],
         max_results: int = 1,
     ) -> list[YouTubeVideoPayload]:
-        return sorted(
-            videos,
+        if max_results <= 0:
+            return []
+
+        bucket_size = max_results // 3 if max_results >= 3 else 1
+        top_videos = sorted(
+            [video for video in videos if not video.is_short and not video.is_stream],
+            key=lambda video: (
+                video.like_count or 0,
+                video.view_count or 0,
+                video.comment_count or 0,
+                video.published_at,
+            ),
+            reverse=True,
+        )[:bucket_size]
+        top_shorts = sorted(
+            [video for video in videos if video.is_short],
             key=lambda video: (
                 video.view_count or 0,
                 video.like_count or 0,
@@ -201,7 +224,34 @@ class YouTubeClient:
                 video.published_at,
             ),
             reverse=True,
-        )[:max_results]
+        )[:bucket_size]
+        top_streams = sorted(
+            [video for video in videos if video.is_stream],
+            key=lambda video: (
+                video.view_count or 0,
+                video.like_count or 0,
+                video.comment_count or 0,
+                video.published_at,
+            ),
+            reverse=True,
+        )[:bucket_size]
+
+        combined = top_videos + top_shorts + top_streams
+        if len(combined) >= max_results:
+            return combined[:max_results]
+
+        selected_ids = {video.youtube_video_id for video in combined}
+        remaining = sorted(
+            [video for video in videos if video.youtube_video_id not in selected_ids],
+            key=lambda video: (
+                video.view_count or 0,
+                video.like_count or 0,
+                video.comment_count or 0,
+                video.published_at,
+            ),
+            reverse=True,
+        )
+        return (combined + remaining)[:max_results]
 
     async def _fetch_channel_metadata_from_api(
         self,
@@ -209,7 +259,7 @@ class YouTubeClient:
         channel_reference: str,
     ) -> dict[str, Any]:
         params = {
-            "part": "snippet,statistics",
+            "part": "snippet,statistics,contentDetails",
             "key": self.youtube_api_key,
         }
         if channel_reference.startswith("@"):
@@ -227,25 +277,46 @@ class YouTubeClient:
             raise YouTubeApiError("YouTube API could not resolve the channel.")
         return items[0]
 
-    async def _fetch_channel_search_items_from_api(
+    async def _fetch_upload_playlist_items_from_api(
         self,
         client: httpx.AsyncClient,
-        channel_id: str,
-        max_results: int,
+        uploads_playlist_id: str,
+        max_items: int | None,
     ) -> list[dict[str, Any]]:
-        response = await client.get(
-            f"{self.youtube_api_base_url}/search",
-            params={
-                "part": "snippet",
-                "channelId": channel_id,
-                "order": "date",
-                "type": "video",
-                "maxResults": max_results,
+        items: list[dict[str, Any]] = []
+        page_token: str | None = None
+
+        while True:
+            batch_size = 50
+            if max_items is not None:
+                remaining = max_items - len(items)
+                if remaining <= 0:
+                    break
+                batch_size = min(batch_size, remaining)
+
+            params = {
+                "part": "snippet,contentDetails",
+                "playlistId": uploads_playlist_id,
+                "maxResults": batch_size,
                 "key": self.youtube_api_key,
-            },
-        )
-        response.raise_for_status()
-        return list((response.json().get("items") or []))
+            }
+            if page_token:
+                params["pageToken"] = page_token
+
+            response = await client.get(
+                f"{self.youtube_api_base_url}/playlistItems",
+                params=params,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            batch = payload.get("items") or []
+            items.extend(batch)
+
+            page_token = payload.get("nextPageToken")
+            if not page_token or not batch:
+                break
+
+        return items
 
     async def _fetch_video_details_from_api(
         self,

@@ -204,13 +204,4 @@ class YouTubeService:
             persisted.append(video)
 
         await self.session.flush()
-        return sorted(
-            persisted,
-            key=lambda video: (
-                video.view_count or 0,
-                video.like_count or 0,
-                video.comment_count or 0,
-                video.published_at,
-            ),
-            reverse=True,
-        )
+        return persisted

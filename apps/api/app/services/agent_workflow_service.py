@@ -283,8 +283,10 @@ class AgentWorkflowService:
                 transcripts=[single.transcript],
             )
         else:
-            transcript_sync = await self.transcript_service.fetch_transcripts_for_channel(
+            selected_video_ids = [str(video.id) for video in state["channel_sync"].videos]
+            transcript_sync = await self.transcript_service.fetch_transcripts_for_video_ids(
                 channel_id=UUID(state["channel_id"]),
+                video_ids=selected_video_ids,
                 include_existing=state["force_transcript_refresh"],
                 include_text=False,
             )
@@ -303,9 +305,11 @@ class AgentWorkflowService:
             video = await self.transcript_service.repository.get_video(state["target_video_id"])
             videos = [video] if video is not None else []
         else:
-            videos = await self.youtube_service.repository.list_active_videos_for_channel(
-                state["channel_id"]
-            )
+            videos = []
+            for summary in state["channel_sync"].videos:
+                video = await self.transcript_service.repository.get_video(str(summary.id))
+                if video is not None:
+                    videos.append(video)
         transcript_rows: list[AgentTranscriptEvidence] = []
         joined_transcripts: list[str] = []
         analyzed_transcript_count = 0
