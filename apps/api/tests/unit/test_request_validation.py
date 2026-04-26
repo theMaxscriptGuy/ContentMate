@@ -44,17 +44,6 @@ def test_google_login_credential_has_reasonable_length_limits() -> None:
     with pytest.raises(ValidationError):
         GoogleLoginRequest(credential="x" * 5001)
 
-
-def test_pipeline_request_requires_at_least_one_content_type() -> None:
-    with pytest.raises(ValidationError):
-        RunPipelineRequest(
-            channel_url="https://www.youtube.com/@contentmate",
-            include_videos=False,
-            include_streams=False,
-            include_shorts=False,
-        )
-
-
 @pytest.mark.parametrize(
     "video_url",
     [

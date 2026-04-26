@@ -32,9 +32,9 @@ class Settings(BaseSettings):
     database_url: str = Field(default="")
     redis_url: str = Field(default="redis://localhost:6379/0")
 
-    youtube_min_duration_seconds: int = 301
+    youtube_min_duration_seconds: int = 60
     youtube_scan_limit: int = 0
-    youtube_candidate_pool_size: int = 10
+    youtube_candidate_pool_size: int = 15
     transcript_use_ytdlp_fallback: bool = True
     trend_context_enabled: bool = True
     trend_default_geo: str = "US"

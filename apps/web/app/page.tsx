@@ -270,11 +270,6 @@ const DEMO_SLIDES = [
 export default function Home() {
   const [analysisTarget, setAnalysisTarget] = useState<"channel" | "video">("channel");
   const [targetUrl, setTargetUrl] = useState("https://www.youtube.com/@techwithvideep");
-  const [contentFilters, setContentFilters] = useState({
-    videos: true,
-    streams: false,
-    shorts: false
-  });
   const [result, setResult] = useState<PipelineResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -593,15 +588,6 @@ export default function Home() {
 
   async function runPipeline(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      analysisTarget === "channel" &&
-      !contentFilters.videos &&
-      !contentFilters.streams &&
-      !contentFilters.shorts
-    ) {
-      setError("Select at least one content type to analyze.");
-      return;
-    }
     if (!authToken) {
       pendingAnalyzeRef.current = true;
       setIsLoginRequired(true);
@@ -638,10 +624,7 @@ export default function Home() {
               : {
                   channel_url: targetUrl,
                   force_transcript_refresh: false,
-                  force_ideas_refresh: true,
-                  include_videos: contentFilters.videos,
-                  include_streams: contentFilters.streams,
-                  include_shorts: contentFilters.shorts
+                  force_ideas_refresh: true
                 }
           )
         }
@@ -759,38 +742,10 @@ export default function Home() {
           </button>
         </form>
         {analysisTarget === "channel" ? (
-          <div className="filterRow">
-            <label className="filterOption">
-              <input
-                checked={contentFilters.videos}
-                onChange={(event) =>
-                  setContentFilters((current) => ({ ...current, videos: event.target.checked }))
-                }
-                type="checkbox"
-              />
-              <span>Videos</span>
-            </label>
-            <label className="filterOption">
-              <input
-                checked={contentFilters.streams}
-                onChange={(event) =>
-                  setContentFilters((current) => ({ ...current, streams: event.target.checked }))
-                }
-                type="checkbox"
-              />
-              <span>Streams</span>
-            </label>
-            <label className="filterOption">
-              <input
-                checked={contentFilters.shorts}
-                onChange={(event) =>
-                  setContentFilters((current) => ({ ...current, shorts: event.target.checked }))
-                }
-                type="checkbox"
-              />
-              <span>Shorts</span>
-            </label>
-          </div>
+          <p className="historyEmpty">
+            Channel analysis automatically reviews the latest 15 uploaded videos and uses titles,
+            descriptions, and transcripts when available.
+          </p>
         ) : (
           <p className="historyEmpty">
             Specific video analysis focuses the agent workflow on one chosen video and

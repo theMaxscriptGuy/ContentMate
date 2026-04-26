@@ -47,8 +47,6 @@ class ChannelRepository:
             select(Video)
             .where(
                 Video.channel_id == channel_id,
-                Video.duration_seconds.is_not(None),
-                Video.duration_seconds >= settings.youtube_min_duration_seconds,
             )
             .order_by(
                 case((Video.transcript_status == "failed", 1), else_=0),

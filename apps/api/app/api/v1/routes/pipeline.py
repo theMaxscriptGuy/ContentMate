@@ -26,14 +26,10 @@ async def run_channel_pipeline(
     request_id = getattr(request.state, "request_id", "-")
     logger.debug(
         "pipeline.route.request request_id=%s user_id=%s channel_url=%s "
-        "include_videos=%s include_streams=%s include_shorts=%s "
-        "force_transcript_refresh=%s force_ideas_refresh=%s",
+        "analysis_scope=latest_videos force_transcript_refresh=%s force_ideas_refresh=%s",
         request_id,
         current_user.id,
         payload.channel_url,
-        payload.include_videos,
-        payload.include_streams,
-        payload.include_shorts,
         payload.force_transcript_refresh,
         payload.force_ideas_refresh,
     )
@@ -85,9 +81,6 @@ async def run_channel_pipeline(
             user_id=current_user.id,
             force_transcript_refresh=payload.force_transcript_refresh,
             force_ideas_refresh=payload.force_ideas_refresh,
-            include_videos=payload.include_videos,
-            include_streams=payload.include_streams,
-            include_shorts=payload.include_shorts,
         )
     except PipelineRunError as exc:
         logger.exception(

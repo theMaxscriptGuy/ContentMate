@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, HttpUrl, field_validator
 
 from app.schemas.analysis import ChannelAnalysisResponse
 from app.schemas.channel import ChannelSyncResponse
@@ -11,20 +11,11 @@ class RunPipelineRequest(BaseModel):
     channel_url: HttpUrl
     force_transcript_refresh: bool = False
     force_ideas_refresh: bool = True
-    include_videos: bool = True
-    include_streams: bool = False
-    include_shorts: bool = False
 
     @field_validator("channel_url")
     @classmethod
     def validate_channel_url(cls, value: HttpUrl) -> HttpUrl:
         return validate_youtube_channel_url(value)
-
-    @model_validator(mode="after")
-    def validate_content_selection(self) -> "RunPipelineRequest":
-        if not (self.include_videos or self.include_streams or self.include_shorts):
-            raise ValueError("Select at least one content type to analyze.")
-        return self
 
 
 class RunVideoPipelineRequest(BaseModel):

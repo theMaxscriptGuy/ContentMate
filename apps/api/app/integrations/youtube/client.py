@@ -131,11 +131,7 @@ class YouTubeClient:
         max_results: int = 1,
     ) -> list[YouTubeVideoPayload]:
         return sorted(
-            [
-                video
-                for video in videos
-                if video.is_short or (video.duration_seconds or 0) >= self.min_duration_seconds
-            ],
+            videos,
             key=lambda video: video.published_at,
             reverse=True,
         )[:max_results]
