@@ -5,6 +5,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
+import httpx
 import yt_dlp
 
 from app.core.config import get_settings
@@ -50,14 +51,16 @@ class YouTubeClient:
         self.min_duration_seconds = settings.youtube_min_duration_seconds
         self.scan_limit = settings.youtube_scan_limit
         self.candidate_pool_size = settings.youtube_candidate_pool_size
+        self.youtube_api_key = settings.youtube_api_key
+        self.youtube_api_base_url = settings.youtube_api_base_url.rstrip("/")
 
     async def fetch_channel_with_latest_videos(
         self,
         channel_url: str,
         max_results: int = 1,
         include_videos: bool = True,
-        include_streams: bool = False,
-        include_shorts: bool = False,
+        include_streams: bool = True,
+        include_shorts: bool = True,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
         return await self.fetch_channel_with_uploaded_videos(
             channel_url=channel_url,
@@ -72,8 +75,8 @@ class YouTubeClient:
         channel_url: str,
         max_results: int = 1,
         include_videos: bool = True,
-        include_streams: bool = False,
-        include_shorts: bool = False,
+        include_streams: bool = True,
+        include_shorts: bool = True,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
         return await self.fetch_channel_with_uploaded_videos(
             channel_url=channel_url,
@@ -88,9 +91,23 @@ class YouTubeClient:
         channel_url: str,
         max_results: int = 1,
         include_videos: bool = True,
-        include_streams: bool = False,
-        include_shorts: bool = False,
+        include_streams: bool = True,
+        include_shorts: bool = True,
     ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
+        primary_errors: list[str] = []
+
+        if self.youtube_api_key:
+            try:
+                return await self._fetch_channel_with_official_api(
+                    channel_url=channel_url,
+                    max_results=max_results,
+                    include_videos=include_videos,
+                    include_streams=include_streams,
+                    include_shorts=include_shorts,
+                )
+            except Exception as exc:
+                primary_errors.append(str(exc))
+
         info = self._extract_channel_info(
             channel_url=channel_url,
             include_videos=include_videos,
@@ -104,12 +121,15 @@ class YouTubeClient:
             include_streams=include_streams,
             include_shorts=include_shorts,
         )
+        videos = self._hydrate_video_payloads(videos)
         if include_streams:
             videos = self._hydrate_stream_payloads(videos)
-        selected_videos = self._select_latest_uploaded_videos(
+        selected_videos = self._select_top_ranked_videos(
             videos=videos,
             max_results=max_results,
         )
+        if not selected_videos and primary_errors:
+            raise YouTubeApiError(" | ".join(primary_errors))
         return channel, selected_videos
 
     async def fetch_video_with_channel(
@@ -125,16 +145,201 @@ class YouTubeClient:
         video = self._build_video_payload_from_video_info(info=info)
         return channel, video
 
-    def _select_latest_uploaded_videos(
+    async def _fetch_channel_with_official_api(
+        self,
+        channel_url: str,
+        max_results: int,
+        include_videos: bool,
+        include_streams: bool,
+        include_shorts: bool,
+    ) -> tuple[YouTubeChannelPayload, list[YouTubeVideoPayload]]:
+        channel_reference = self._extract_channel_reference(channel_url)
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            channel_info = await self._fetch_channel_metadata_from_api(client, channel_reference)
+            channel = self._build_channel_payload_from_api(
+                channel_info=channel_info,
+                channel_url=channel_url,
+            )
+
+            candidate_limit = self.scan_limit or max(self.candidate_pool_size * 3, max_results)
+            candidate_limit = min(candidate_limit, 50)
+            search_items = await self._fetch_channel_search_items_from_api(
+                client=client,
+                channel_id=channel.youtube_channel_id,
+                max_results=candidate_limit,
+            )
+            video_ids = [
+                item.get("id", {}).get("videoId")
+                for item in search_items
+                if item.get("id", {}).get("videoId")
+            ]
+            if not video_ids:
+                raise YouTubeApiError("YouTube API returned no channel videos.")
+
+            video_items = await self._fetch_video_details_from_api(client, video_ids)
+            videos = self._build_video_payloads_from_api_items(
+                video_items=video_items,
+                include_videos=include_videos,
+                include_streams=include_streams,
+                include_shorts=include_shorts,
+            )
+            selected_videos = self._select_top_ranked_videos(videos=videos, max_results=max_results)
+            return channel, selected_videos
+
+    def _select_top_ranked_videos(
         self,
         videos: list[YouTubeVideoPayload],
         max_results: int = 1,
     ) -> list[YouTubeVideoPayload]:
         return sorted(
             videos,
-            key=lambda video: video.published_at,
+            key=lambda video: (
+                video.view_count or 0,
+                video.like_count or 0,
+                video.comment_count or 0,
+                video.published_at,
+            ),
             reverse=True,
         )[:max_results]
+
+    async def _fetch_channel_metadata_from_api(
+        self,
+        client: httpx.AsyncClient,
+        channel_reference: str,
+    ) -> dict[str, Any]:
+        params = {
+            "part": "snippet,statistics",
+            "key": self.youtube_api_key,
+        }
+        if channel_reference.startswith("@"):
+            params["forHandle"] = channel_reference.removeprefix("@")
+        elif channel_reference.startswith("UC"):
+            params["id"] = channel_reference
+        else:
+            params["forUsername"] = channel_reference
+
+        response = await client.get(f"{self.youtube_api_base_url}/channels", params=params)
+        response.raise_for_status()
+        payload = response.json()
+        items = payload.get("items") or []
+        if not items:
+            raise YouTubeApiError("YouTube API could not resolve the channel.")
+        return items[0]
+
+    async def _fetch_channel_search_items_from_api(
+        self,
+        client: httpx.AsyncClient,
+        channel_id: str,
+        max_results: int,
+    ) -> list[dict[str, Any]]:
+        response = await client.get(
+            f"{self.youtube_api_base_url}/search",
+            params={
+                "part": "snippet",
+                "channelId": channel_id,
+                "order": "date",
+                "type": "video",
+                "maxResults": max_results,
+                "key": self.youtube_api_key,
+            },
+        )
+        response.raise_for_status()
+        return list((response.json().get("items") or []))
+
+    async def _fetch_video_details_from_api(
+        self,
+        client: httpx.AsyncClient,
+        video_ids: list[str],
+    ) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for chunk in _chunked(video_ids, 50):
+            response = await client.get(
+                f"{self.youtube_api_base_url}/videos",
+                params={
+                    "part": "snippet,contentDetails,statistics,liveStreamingDetails",
+                    "id": ",".join(chunk),
+                    "maxResults": len(chunk),
+                    "key": self.youtube_api_key,
+                },
+            )
+            response.raise_for_status()
+            items.extend(response.json().get("items") or [])
+        return items
+
+    def _build_channel_payload_from_api(
+        self,
+        channel_info: dict[str, Any],
+        channel_url: str,
+    ) -> YouTubeChannelPayload:
+        snippet = channel_info.get("snippet") or {}
+        statistics = channel_info.get("statistics") or {}
+        thumbnails = snippet.get("thumbnails") or {}
+        thumbnail = (
+            thumbnails.get("high", {}).get("url")
+            or thumbnails.get("medium", {}).get("url")
+            or thumbnails.get("default", {}).get("url")
+        )
+        return YouTubeChannelPayload(
+            youtube_channel_id=channel_info.get("id") or "",
+            channel_url=channel_url,
+            title=snippet.get("title") or "Unknown Channel",
+            description=snippet.get("description"),
+            country=snippet.get("country"),
+            default_language=snippet.get("defaultLanguage"),
+            subscriber_count=_safe_int(statistics.get("subscriberCount")),
+            video_count=_safe_int(statistics.get("videoCount")),
+            thumbnail_url=thumbnail,
+        )
+
+    def _build_video_payloads_from_api_items(
+        self,
+        video_items: list[dict[str, Any]],
+        include_videos: bool,
+        include_streams: bool,
+        include_shorts: bool,
+    ) -> list[YouTubeVideoPayload]:
+        videos: list[YouTubeVideoPayload] = []
+        for item in video_items:
+            payload = self._build_video_payload_from_api_item(item)
+            if payload.is_stream and not include_streams:
+                continue
+            if payload.is_short and not include_shorts:
+                continue
+            if not payload.is_stream and not payload.is_short and not include_videos:
+                continue
+            videos.append(payload)
+        return videos
+
+    def _build_video_payload_from_api_item(self, item: dict[str, Any]) -> YouTubeVideoPayload:
+        snippet = item.get("snippet") or {}
+        statistics = item.get("statistics") or {}
+        content_details = item.get("contentDetails") or {}
+        live_streaming_details = item.get("liveStreamingDetails") or {}
+        thumbnails = snippet.get("thumbnails") or {}
+        duration_seconds = _parse_iso8601_duration(content_details.get("duration"))
+        live_broadcast_content = str(snippet.get("liveBroadcastContent") or "").lower()
+        is_stream = bool(live_streaming_details) or live_broadcast_content in {"live", "upcoming"}
+        is_short = not is_stream and duration_seconds is not None and duration_seconds <= 90
+        thumbnail = (
+            thumbnails.get("high", {}).get("url")
+            or thumbnails.get("medium", {}).get("url")
+            or thumbnails.get("default", {}).get("url")
+        )
+
+        return YouTubeVideoPayload(
+            youtube_video_id=item.get("id") or "",
+            title=snippet.get("title") or "Untitled Video",
+            description=snippet.get("description"),
+            published_at=_parse_api_published_at(snippet.get("publishedAt")),
+            thumbnail_url=thumbnail,
+            duration_seconds=duration_seconds,
+            view_count=_safe_int(statistics.get("viewCount")),
+            like_count=_safe_int(statistics.get("likeCount")),
+            comment_count=_safe_int(statistics.get("commentCount")),
+            is_short=is_short,
+            is_stream=is_stream,
+        )
 
     def _extract_channel_reference(self, channel_url: str) -> str:
         parsed = urlparse(channel_url)
@@ -523,6 +728,12 @@ class YouTubeClient:
                 hydrated.append(video)
         return hydrated
 
+    def _hydrate_video_payloads(
+        self,
+        videos: list[YouTubeVideoPayload],
+    ) -> list[YouTubeVideoPayload]:
+        return [self._hydrate_video_payload(video) for video in videos]
+
 
 def _safe_int(value: Any) -> int | None:
     if value is None:
@@ -584,6 +795,20 @@ def _parse_upload_date(entry: dict[str, Any]) -> datetime:
         return datetime.fromtimestamp(release_timestamp, tz=UTC)
 
     return datetime.now(UTC)
+
+
+def _parse_api_published_at(value: Any) -> datetime:
+    if isinstance(value, str):
+        normalized = value.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized)
+        except ValueError:
+            pass
+    return datetime.now(UTC)
+
+
+def _chunked(items: list[str], size: int) -> list[list[str]]:
+    return [items[index : index + size] for index in range(0, len(items), size)]
 
 
 def _dedupe_entries(entries) -> list[dict[str, Any]]:

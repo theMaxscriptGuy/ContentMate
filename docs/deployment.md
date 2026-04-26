@@ -106,6 +106,8 @@ MAX_REQUEST_BODY_BYTES=1048576
 YOUTUBE_MIN_DURATION_SECONDS=60
 YOUTUBE_SCAN_LIMIT=0
 YOUTUBE_CANDIDATE_POOL_SIZE=15
+YOUTUBE_API_KEY=your_youtube_data_api_key
+YOUTUBE_API_BASE_URL=https://www.googleapis.com/youtube/v3
 TRANSCRIPT_USE_YTDLP_FALLBACK=true
 CORS_ALLOWED_ORIGINS=https://www.contentmatepro.com,https://contentmatepro.com
 ```

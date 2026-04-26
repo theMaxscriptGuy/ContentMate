@@ -50,6 +50,9 @@ class ChannelRepository:
             )
             .order_by(
                 case((Video.transcript_status == "failed", 1), else_=0),
+                desc(Video.view_count),
+                desc(Video.like_count),
+                desc(Video.comment_count),
                 desc(Video.published_at),
             )
             .limit(active_limit)

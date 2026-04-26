@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     youtube_min_duration_seconds: int = 60
     youtube_scan_limit: int = 0
     youtube_candidate_pool_size: int = 15
+    youtube_api_key: str = Field(default="")
+    youtube_api_base_url: str = "https://www.googleapis.com/youtube/v3"
     transcript_use_ytdlp_fallback: bool = True
     trend_context_enabled: bool = True
     trend_default_geo: str = "US"

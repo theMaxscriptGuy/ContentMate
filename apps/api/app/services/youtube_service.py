@@ -41,8 +41,8 @@ class YouTubeService:
         channel_url: str,
         user_id: str | None = None,
         include_videos: bool = True,
-        include_streams: bool = False,
-        include_shorts: bool = False,
+        include_streams: bool = True,
+        include_shorts: bool = True,
     ) -> ChannelSyncResult:
         logger.debug(
             "youtube.sync.start url=%s user_id=%s include_videos=%s "
@@ -206,6 +206,11 @@ class YouTubeService:
         await self.session.flush()
         return sorted(
             persisted,
-            key=lambda video: video.published_at,
+            key=lambda video: (
+                video.view_count or 0,
+                video.like_count or 0,
+                video.comment_count or 0,
+                video.published_at,
+            ),
             reverse=True,
         )

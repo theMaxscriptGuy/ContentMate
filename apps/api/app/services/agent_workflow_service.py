@@ -14,7 +14,7 @@ from app.schemas.agent_workflow import (
     AgentWorkflowMeta,
 )
 from app.schemas.analysis import ChannelAnalysisResponse
-from app.schemas.channel import ChannelSyncResponse
+from app.schemas.channel import ChannelSyncResponse, VideoSummary
 from app.schemas.ideas import GenerateIdeasResponse
 from app.schemas.openai_usage import OpenAIUsage, OpenAIUsageBreakdown
 from app.schemas.pipeline import RunPipelineResponse
@@ -108,8 +108,8 @@ class AgentWorkflowService:
         force_transcript_refresh: bool = False,
         force_ideas_refresh: bool = True,
         include_videos: bool = True,
-        include_streams: bool = False,
-        include_shorts: bool = False,
+        include_streams: bool = True,
+        include_shorts: bool = True,
     ) -> RunPipelineResponse:
         logger.debug(
             "agent.workflow.start channel_url=%s user_id=%s "
@@ -161,13 +161,38 @@ class AgentWorkflowService:
         transcript_sync = state.get("transcript_sync")
         analysis = state.get("analysis")
         ideas_response = state.get("ideas_response")
+        evidence_package = state.get("evidence_package")
         if (
             channel_sync is None
             or transcript_sync is None
             or analysis is None
             or ideas_response is None
+            or evidence_package is None
         ):
             raise AgentWorkflowError("Agent workflow did not complete successfully.")
+
+        analyzed_videos = [
+            VideoSummary(
+                id=video.video_id,
+                youtube_video_id=video.youtube_video_id,
+                title=video.title,
+                description=video.description,
+                published_at=video.published_at,
+                duration_seconds=video.duration_seconds,
+                view_count=video.view_count,
+                like_count=video.like_count,
+                comment_count=video.comment_count,
+                thumbnail_url=video.thumbnail_url,
+                transcript_status=video.transcript_status,
+                analysis_status="completed",
+            )
+            for video in evidence_package.videos
+        ]
+        response_channel_sync = channel_sync.model_copy(
+            update={
+                "videos": analyzed_videos,
+            }
+        )
 
         logger.debug(
             "agent.workflow.completed channel_id=%s title=%s transcript_fetched=%s "
@@ -188,7 +213,7 @@ class AgentWorkflowService:
         )
         return RunPipelineResponse(
             job_id=transcript_sync.job_id,
-            channel_sync=channel_sync,
+            channel_sync=response_channel_sync,
             transcript_sync=transcript_sync,
             analysis=analysis,
             ideas=ideas_response.ideas,

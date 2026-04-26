@@ -20,6 +20,8 @@ type VideoSummary = {
   youtube_video_id: string;
   duration_seconds: number | null;
   view_count: number | null;
+  like_count: number | null;
+  published_at: string;
   thumbnail_url: string | null;
   transcript_status: string;
 };
@@ -299,6 +301,16 @@ export default function Home() {
     analyzedVideoCount === 1 ? "Analyzed Video Set" : "Analyzed Videos";
   const hasDetailedRead = analyzedTranscriptCount > 0;
   const usedMetadataFallback = !hasDetailedRead;
+  const analyzedVideoList = useMemo(
+    () => (result?.channel_sync.videos ?? []).slice(0, Math.max(analyzedVideoCount, syncedVideoCount)),
+    [analyzedVideoCount, result, syncedVideoCount]
+  );
+  const selectedVideoStatusLabel =
+    selectedVideo?.transcript_status === "completed"
+      ? "transcript complete"
+      : selectedVideo?.transcript_status === "failed"
+        ? "transcript unavailable"
+        : "transcript not fetched";
   const topicChips = useMemo(() => {
     const topics = result?.analysis.result.primary_topics ?? [];
     return topics.slice(0, 6);
@@ -743,8 +755,9 @@ export default function Home() {
         </form>
         {analysisTarget === "channel" ? (
           <p className="historyEmpty">
-            Channel analysis automatically reviews the latest 15 uploaded videos and uses titles,
-            descriptions, and transcripts when available.
+            Channel analysis automatically reviews the top 15 channel uploads across
+            videos, streams, and Shorts, ranked by views first and likes second, then
+            uses titles, descriptions, and transcripts when available.
           </p>
         ) : (
           <p className="historyEmpty">
@@ -961,7 +974,7 @@ export default function Home() {
               <h2>{selectedVideo.title}</h2>
               <p className="muted">
                 {analyzedVideoCount > 1
-                  ? `${analyzedVideoCount} videos contributed to this analysis. This card shows the most recent representative video from that set.`
+                  ? `${analyzedVideoCount} videos contributed to this analysis. This card shows one representative video from that ranked set.`
                   : analyzedVideoCount === 1
                     ? "This run analyzed one video for the final result."
                     : "This card shows the most recent synced video from the channel surface for context."}
@@ -974,7 +987,34 @@ export default function Home() {
                 </span>
                 <span>{formatDuration(selectedVideo.duration_seconds)}</span>
                 <span>{formatNumber(selectedVideo.view_count)} views</span>
-                <span>{selectedVideo.transcript_status}</span>
+                <span>{selectedVideoStatusLabel}</span>
+              </div>
+            </section>
+          ) : null}
+
+          {analyzedVideoList.length > 0 ? (
+            <section className="panel widePanel">
+              <p className="sectionLabel">Analyzed Video List</p>
+              <h2>Which videos were used in this run</h2>
+              <div className="analysisVideoList">
+                {analyzedVideoList.map((video) => (
+                  <article className="analysisVideoItem" key={video.youtube_video_id}>
+                    <strong>{video.title}</strong>
+                    <div className="metricRow">
+                      <span>{formatDuration(video.duration_seconds)}</span>
+                      <span>{formatNumber(video.view_count)} views</span>
+                      <span>{formatNumber(video.like_count)} likes</span>
+                      <span>{formatPublishedDate(video.published_at)}</span>
+                      <span>
+                        {video.transcript_status === "completed"
+                          ? "transcript complete"
+                          : video.transcript_status === "failed"
+                            ? "transcript unavailable"
+                            : "transcript not fetched"}
+                      </span>
+                    </div>
+                  </article>
+                ))}
               </div>
             </section>
           ) : null}
@@ -1270,4 +1310,19 @@ function formatDuration(value: number | null) {
   const minutes = Math.floor(value / 60);
   const seconds = value % 60;
   return `${minutes}m ${seconds}s`;
+}
+
+function formatPublishedDate(value: string | null) {
+  if (!value) {
+    return "Unknown date";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown date";
+  }
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }

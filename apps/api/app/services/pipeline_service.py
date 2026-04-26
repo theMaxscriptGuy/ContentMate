@@ -33,8 +33,8 @@ class PipelineService:
         force_transcript_refresh: bool = False,
         force_ideas_refresh: bool = True,
         include_videos: bool = True,
-        include_streams: bool = False,
-        include_shorts: bool = False,
+        include_streams: bool = True,
+        include_shorts: bool = True,
     ) -> RunPipelineResponse:
         logger.debug(
             "pipeline.run.start channel_url=%s user_id=%s "
