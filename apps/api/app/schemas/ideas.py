@@ -41,6 +41,13 @@ class ThumbnailAngle(BaseModel):
     text_overlay: str
 
 
+class TrendFit(BaseModel):
+    trend: str
+    relevance: str
+    why_it_fits: str
+    execution_angle: str
+
+
 class CalendarItem(BaseModel):
     week: int = Field(ge=1)
     focus: str
@@ -48,6 +55,7 @@ class CalendarItem(BaseModel):
 
 
 class LongformIdeasPayload(BaseModel):
+    trend_fit: list[TrendFit] = Field(default_factory=list)
     video_ideas: list[VideoIdea]
     title_hooks: list[TitleHook]
     thumbnail_angles: list[ThumbnailAngle]
@@ -62,6 +70,7 @@ class PlannerIdeasPayload(BaseModel):
 
 
 class ContentIdeasPayload(BaseModel):
+    trend_fit: list[TrendFit] = Field(default_factory=list)
     video_ideas: list[VideoIdea]
     shorts_ideas: list[ShortIdea]
     title_hooks: list[TitleHook]

@@ -27,6 +27,7 @@ from app.schemas.ideas import (
     ShortformIdeasPayload,
 )
 from app.schemas.openai_usage import OpenAIUsage, OpenAIUsageBreakdown
+from app.utils.text import TOPIC_BUCKETS, extract_candidate_topics
 from app.workers.queue import create_job, set_job_status
 
 
@@ -159,14 +160,18 @@ class IdeasService:
         if settings.trend_context_enabled:
             try:
                 trend_snapshot = self.trend_client.fetch_trending_searches(trend_geo)
-                trend_items = trend_snapshot.items
-                trend_context = self._build_trend_context(trend_snapshot.items)
+                trend_items = self._filter_relevant_trend_items(
+                    analysis=analysis,
+                    items=trend_snapshot.items,
+                )
+                trend_context = self._build_trend_context(trend_items)
                 logger.debug(
-                    "agent.ideas.trends.loaded channel_id=%s geo=%s source=%s items=%s",
+                    "agent.ideas.trends.loaded channel_id=%s geo=%s source=%s raw_items=%s filtered_items=%s",
                     channel_id,
                     trend_snapshot.geo,
                     trend_snapshot.source,
                     len(trend_snapshot.items),
+                    len(trend_items),
                 )
             except TrendProviderError:
                 logger.exception(
@@ -289,6 +294,7 @@ class IdeasService:
         await set_job_status(job_id=job_id, status="processing")
 
         payload = ContentIdeasPayload(
+            trend_fit=longform.payload.trend_fit,
             video_ideas=longform.payload.video_ideas,
             shorts_ideas=shortform.payload.shorts_ideas,
             title_hooks=longform.payload.title_hooks,
@@ -327,7 +333,7 @@ class IdeasService:
         logger.debug(
             "agent.ideas.completed channel_id=%s job_id=%s model=%s "
             "trend_geo=%s trend_loaded=%s video_ideas=%s shorts_ideas=%s "
-            "title_hooks=%s thumbnail_angles=%s calendar_items=%s total_tokens=%s",
+            "trend_fit_items=%s title_hooks=%s thumbnail_angles=%s calendar_items=%s total_tokens=%s",
             context.channel.id,
             job_id,
             ideas_row.model_name,
@@ -335,6 +341,7 @@ class IdeasService:
             bool(context.trend_items),
             len(payload.video_ideas),
             len(payload.shorts_ideas),
+            len(payload.trend_fit),
             len(payload.title_hooks),
             len(payload.thumbnail_angles),
             len(payload.content_calendar),
@@ -378,8 +385,77 @@ class IdeasService:
     @staticmethod
     def _build_trend_context(items: list[str]) -> str:
         if not items:
-            return "No relevant trend items were available."
+            return "No relevant niche-aligned trend items were available for this run."
         return "\n".join(f"- {item}" for item in items[: settings.trend_max_items])
+
+    @staticmethod
+    def _filter_relevant_trend_items(
+        *,
+        analysis: ChannelAnalysisPayload,
+        items: list[str],
+    ) -> list[str]:
+        channel_terms = IdeasService._build_channel_terms(analysis)
+        channel_buckets = IdeasService._infer_channel_buckets(analysis)
+        relevant: list[str] = []
+
+        for item in items:
+            trend_terms = set(extract_candidate_topics(item, limit=8).keys())
+            if not trend_terms:
+                continue
+
+            direct_overlap = trend_terms & channel_terms
+            bucket_match = any(
+                trend_terms & TOPIC_BUCKETS[bucket] for bucket in channel_buckets if bucket in TOPIC_BUCKETS
+            )
+
+            if direct_overlap or bucket_match:
+                relevant.append(item)
+
+        return relevant[: settings.trend_max_items]
+
+    @staticmethod
+    def _build_channel_terms(analysis: ChannelAnalysisPayload) -> set[str]:
+        terms: set[str] = set()
+        terms.update(topic.topic.lower() for topic in analysis.primary_topics)
+        terms.update(topic.topic.lower() for topic in analysis.secondary_topics)
+
+        profile_parts = [
+            analysis.niche,
+            analysis.target_audience,
+            analysis.tone,
+        ]
+        if analysis.creator_profile:
+            profile_parts.extend(
+                [
+                    analysis.creator_profile.creator_archetype,
+                    analysis.creator_profile.content_style,
+                    analysis.creator_profile.packaging_style,
+                ]
+            )
+
+        extracted = extract_candidate_topics(" ".join(profile_parts), limit=30)
+        terms.update(extracted.keys())
+        return {term for term in terms if term}
+
+    @staticmethod
+    def _infer_channel_buckets(analysis: ChannelAnalysisPayload) -> set[str]:
+        text = " ".join(
+            [
+                analysis.niche,
+                analysis.target_audience,
+                analysis.tone,
+                *(topic.topic for topic in analysis.primary_topics),
+                *(topic.topic for topic in analysis.secondary_topics),
+                analysis.creator_profile.content_style if analysis.creator_profile else "",
+                analysis.creator_profile.packaging_style if analysis.creator_profile else "",
+            ]
+        ).lower()
+
+        buckets: set[str] = set()
+        for bucket, keywords in TOPIC_BUCKETS.items():
+            if bucket in text or any(keyword in text for keyword in keywords):
+                buckets.add(bucket)
+        return buckets
 
     @staticmethod
     def _build_usage_breakdown(

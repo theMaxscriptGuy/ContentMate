@@ -77,6 +77,13 @@ type ThumbnailAngle = {
   text_overlay: string;
 };
 
+type TrendFit = {
+  trend: string;
+  relevance: string;
+  why_it_fits: string;
+  execution_angle: string;
+};
+
 type CalendarItem = {
   week: number;
   focus: string;
@@ -84,6 +91,7 @@ type CalendarItem = {
 };
 
 type IdeasResult = {
+  trend_fit?: TrendFit[];
   video_ideas: VideoIdea[];
   shorts_ideas: ShortIdea[];
   title_hooks: TitleHook[];
@@ -1045,6 +1053,25 @@ export default function Home() {
                   <strong>Growth Direction</strong>
                   <span>{result.analysis.result.creator_profile.growth_direction}</span>
                 </article>
+              </div>
+            </section>
+          ) : null}
+
+          {result.ideas.result.trend_fit && result.ideas.result.trend_fit.length > 0 ? (
+            <section className="panel widePanel">
+              <p className="sectionLabel">Trend Fit</p>
+              <h2>What is timely for this channel right now</h2>
+              <div className="ideaGrid">
+                {result.ideas.result.trend_fit.map((item) => (
+                  <article className="ideaCard" key={`${item.trend}-${item.execution_angle}`}>
+                    <div className="ideaHeader">
+                      <strong>{item.trend}</strong>
+                      <span className="chip">{item.relevance}</span>
+                    </div>
+                    <p>{item.why_it_fits}</p>
+                    <small>{item.execution_angle}</small>
+                  </article>
+                ))}
               </div>
             </section>
           ) : null}

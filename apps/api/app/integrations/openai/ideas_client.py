@@ -62,6 +62,11 @@ class OpenAIIdeasClient:
             user_prompt=(
                 f"{prompt}\n\n"
                 "Task:\n"
+                "- First, identify a small set of current trends or active themes that genuinely fit this channel.\n"
+                "- Return trend-fit items only when there is a believable connection to the creator profile, niche, or current content direction.\n"
+                "- If no supplied trend items clearly fit the channel, return an empty trend_fit list.\n"
+                "- Mark trend relevance simply as high, medium, or low.\n"
+                "- For each trend-fit item, explain why it fits and give one concrete execution angle.\n"
                 "- Produce strong long-form YouTube video ideas.\n"
                 "- Video ideas should feel publishable soon, not vague brainstorm notes.\n"
                 "- For each video idea, include packaging help with 3 distinct title options, "
